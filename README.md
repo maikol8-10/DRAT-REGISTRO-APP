@@ -40,6 +40,42 @@ Expo SDK 57 requiere Node.js 22.13 o superior. La versión instalada cumple este
 
 Android Studio no es obligatorio para esta etapa. La aplicación puede probarse con Expo Go en un teléfono físico o desde un navegador.
 
+## Pruebas en Android verificadas
+
+La configuración de pruebas fue validada con:
+
+- Android Studio instalado.
+- Android SDK Platform 36 y Build Tools 36.0.0.
+- Android SDK Command-line Tools y Platform-Tools.
+- Aceleración de virtualización WHPX.
+- Emulador `SICAF_API_36` con Android 16.
+- ADB 1.0.41.
+- Expo Go instalado en el emulador.
+- Aplicación compilada y abierta correctamente en el emulador.
+- Aplicación abierta correctamente con Expo Go en un teléfono físico.
+
+Antes de ejecutar comandos Android desde una terminal nueva de PowerShell, puede definir temporalmente el SDK:
+
+```powershell
+$env:ANDROID_HOME="C:\Users\$env:USERNAME\AppData\Local\Android\Sdk"
+$env:ANDROID_SDK_ROOT=$env:ANDROID_HOME
+$env:Path="$env:ANDROID_HOME\platform-tools;$env:ANDROID_HOME\emulator;$env:Path"
+```
+
+Para comprobar los dispositivos disponibles:
+
+```powershell
+adb.exe devices -l
+```
+
+Con `SICAF_API_36` iniciado, abra la aplicación en el emulador mediante:
+
+```powershell
+npx.cmd expo start --android
+```
+
+La primera ejecución descarga e instala Expo Go y reconstruye la caché de Metro, por lo que puede tardar varios minutos.
+
 ## Instalación
 
 Abra PowerShell o la terminal integrada de VS Code y entre en la carpeta del proyecto:
