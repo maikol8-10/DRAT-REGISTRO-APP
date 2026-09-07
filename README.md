@@ -243,3 +243,19 @@ El 7 de septiembre de 2026 se verificó la base móvil con los siguientes result
 - Incluye navegación con Expo Router y una pantalla inicial funcional.
 - Ejecuta y compila localmente sin errores bloqueantes.
 - La implementación y sus comandos de validación están documentados.
+
+## Comunicación con el backend
+
+Copie el archivo de variables de ejemplo antes de iniciar Expo:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+`EXPO_PUBLIC_API_URL` define la dirección de la API. En `SICAF_API_36` se utiliza `http://10.0.2.2:3000`, dirección especial con la que el emulador Android accede al puerto 3000 del equipo anfitrión. Para un teléfono físico debe utilizarse la IP local del equipo.
+
+La pantalla inicial consulta `GET /health` y muestra `API conectada` cuando el backend está disponible. El archivo `.env` está excluido de Git y `.env.example` no contiene secretos.
+
+La arquitectura completa y las comunicaciones se encuentran en el repositorio `DRAT-REGISTRO-API`, dentro de `docs/architecture.md`, y en el [diagrama editable de FigJam](https://www.figma.com/board/JniN3acMMwkc28n4GDimNq).
+
+El 7 de septiembre de 2026 se verificaron ESLint, TypeScript y la compilación Android después de incorporar la configuración del backend.

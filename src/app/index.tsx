@@ -1,8 +1,10 @@
 import { router } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SICAFColors as colors } from '@/constants/theme';
+import { getApiHealth } from '@/services/api';
 
 const actions = [
   { id: 'nfc', icon: 'NFC', title: 'Escanear TAG NFC', detail: 'Funcionario o proveedor' },
@@ -12,6 +14,16 @@ const actions = [
 ] as const;
 
 export default function HomeScreen() {
+  const [apiConnected, setApiConnected] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    getApiHealth(controller.signal)
+      .then(() => setApiConnected(true))
+      .catch(() => setApiConnected(false));
+    return () => controller.abort();
+  }, []);
+
   return (
     <View style={styles.screen}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -28,7 +40,9 @@ export default function HomeScreen() {
             <Text style={styles.userName}>Guarda Demo</Text>
             <View style={styles.syncBadge}>
               <View style={styles.syncDot} />
-              <Text style={styles.syncText}>Sincronizado · hace 2 min</Text>
+              <Text style={styles.syncText}>
+                {apiConnected === null ? 'Comprobando API…' : apiConnected ? 'API conectada' : 'API sin conexión'}
+              </Text>
             </View>
           </View>
 
