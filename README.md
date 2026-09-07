@@ -212,3 +212,33 @@ android/          Proyecto Android generado
 - Procedimiento reproducible documentado.
 - Alternativa sin Android Studio documentada.
 - Problemas conocidos de PowerShell, VPN y Expo registrados.
+
+## Base de la aplicación móvil
+
+La base funcional de SICAF utiliza React Native, Expo, TypeScript y Expo Router. La pantalla principal presenta los procesos previstos para la garita y cada acción navega a una pantalla provisional identificada por tipo de proceso.
+
+Las pantallas provisionales permiten comprobar el flujo de navegación sin adelantar las integraciones de NFC, OCR, visitantes o funcionamiento sin conexión, que pertenecen a entregables posteriores.
+
+### Rutas iniciales
+
+```text
+/                         Pantalla principal de SICAF
+/registro/[tipo]          Pantalla provisional del proceso seleccionado
+```
+
+### Evidencia de validación
+
+El 7 de septiembre de 2026 se verificó la base móvil con los siguientes resultados:
+
+- ESLint: completado sin errores mediante `npm.cmd run lint`.
+- TypeScript estricto: completado sin errores mediante `npx.cmd tsc --noEmit`.
+- Compilación Android: paquete generado correctamente mediante `npx.cmd expo export --platform android`.
+- Navegación: las rutas y acciones de NFC, OCR, visitante y emergencia fueron verificadas por TypeScript y por la compilación Android; queda como comprobación visual abrirlas en el emulador.
+- Ejecución local: proyecto comprobado previamente en el emulador Android `SICAF_API_36`.
+
+### Criterios cumplidos de la base móvil
+
+- El proyecto utiliza React Native, Expo y TypeScript.
+- Incluye navegación con Expo Router y una pantalla inicial funcional.
+- Ejecuta y compila localmente sin errores bloqueantes.
+- La implementación y sus comandos de validación están documentados.
