@@ -233,8 +233,9 @@ El 7 de septiembre de 2026 se verificó la base móvil con los siguientes result
 - ESLint: completado sin errores mediante `npm.cmd run lint`.
 - TypeScript estricto: completado sin errores mediante `npx.cmd tsc --noEmit`.
 - Compilación Android: paquete generado correctamente mediante `npx.cmd expo export --platform android`.
-- Navegación: las rutas y acciones de NFC, OCR, visitante y emergencia fueron verificadas por TypeScript y por la compilación Android; queda como comprobación visual abrirlas en el emulador.
+- Navegación: las acciones NFC, OCR, visitante y emergencia abren su ruta provisional y permiten regresar a la pantalla principal.
 - Ejecución local: proyecto comprobado previamente en el emulador Android `SICAF_API_36`.
+- Validación funcional: los cuatro flujos provisionales fueron comprobados exitosamente por el responsable en `SICAF_API_36` el 7 de septiembre de 2026.
 
 ### Criterios cumplidos de la base móvil
 
