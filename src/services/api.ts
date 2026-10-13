@@ -15,7 +15,7 @@ export async function getApiHealth(signal?: AbortSignal): Promise<ApiHealth> {
   return response.json() as Promise<ApiHealth>;
 }
 
-type Employee = { id: string; identification: string; name: string; department: string; position: string; active: boolean };
+export type Employee = { id: string; identification: string; name: string; department: string; position: string; active: boolean };
 type InstitutionalVehicle = { id: string; plate: string; brand: string; model: string; year: number; fuelType: string; active: boolean; ownershipType: 'INSTITUCIONAL' };
 type PrivateVehicle = { id: string; plate: string; brand: string; model: string; color: string; active: boolean; ownershipType: 'PARTICULAR'; owner: Pick<Employee, 'id' | 'identification' | 'name' | 'active'> };
 
@@ -67,4 +67,27 @@ export async function resolveNfcMovement(token: string, code: string) {
 export async function confirmNfcMovement(token: string, code: string, movementType: 'INGRESO' | 'SALIDA') {
   const response = await apiRequest<{ data: { id: string; movementType: 'INGRESO' | 'SALIDA'; occurredAt: string } }>('/api/v1/movements/employees/nfc', { method: 'POST', body: JSON.stringify({ code, movementType, source: 'NFC_SIMULADO' }) }, token);
   return response.data;
+}
+
+export async function searchActiveEmployees(token: string, search: string) {
+  const query = `?search=${encodeURIComponent(search.trim())}`;
+  const response = await apiRequest<{ data: Employee[] }>(`/api/v1/catalogs/employees${query}`, {}, token);
+  return response.data.filter((employee) => employee.active);
+}
+
+export type ManualMovementResolution = Omit<NfcMovementResolution, 'tag'>;
+
+export async function resolveManualMovement(token: string, employeeId: string) {
+  const response = await apiRequest<{ data: ManualMovementResolution }>('/api/v1/movements/employees/manual/resolve', { method: 'POST', body: JSON.stringify({ employeeId }) }, token);
+  return response.data;
+}
+
+export async function confirmManualMovement(token: string, employeeId: string, movementType: 'INGRESO' | 'SALIDA') {
+  const response = await apiRequest<{ data: { id: string; movementType: 'INGRESO' | 'SALIDA'; occurredAt: string } }>('/api/v1/movements/employees/manual', { method: 'POST', body: JSON.stringify({ employeeId, movementType }) }, token);
+  return response.data;
+}
+
+export async function getPresenceCount(token: string) {
+  const response = await apiRequest<{ data: { count: number } }>('/api/v1/movements/employees/presence/count', {}, token);
+  return response.data.count;
 }

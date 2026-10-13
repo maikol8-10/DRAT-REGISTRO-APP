@@ -276,6 +276,10 @@ La acción **Escanear TAG NFC** dispone temporalmente de un modo de prueba clara
 
 Los movimientos simulados se guardan con el origen `NFC_SIMULADO`. La lectura real se incorporará como `NFC_FISICO` mediante una development build, reutilizando las mismas validaciones y confirmación.
 
+## Registro de funcionario a pie
+
+La acción **Registrar funcionario a pie** permite buscar personal activo por nombre o identificación, seleccionar a la persona y confirmar el ingreso o salida propuesto. El movimiento se registra como `BUSQUEDA_MANUAL`. Después de confirmar se muestra el aforo actualizado, y la pantalla principal vuelve a consultarlo al recuperar el foco.
+
 La arquitectura completa y las comunicaciones se encuentran en el repositorio `DRAT-REGISTRO-API`, dentro de `docs/architecture.md`, y en el [diagrama editable de FigJam](https://www.figma.com/board/JniN3acMMwkc28n4GDimNq).
 
 El 7 de septiembre de 2026 se verificaron ESLint, TypeScript y la compilación Android después de incorporar la configuración del backend.

@@ -1,14 +1,15 @@
-import { Redirect, router, type Href } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { Redirect, router, useFocusEffect, type Href } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SICAFColors as colors } from '@/constants/theme';
-import { getApiHealth } from '@/services/api';
+import { getApiHealth, getPresenceCount } from '@/services/api';
 import { useSession } from '@/auth/SessionContext';
 
 const actions = [
   { id: 'nfc', icon: 'NFC', title: 'Escanear TAG NFC', detail: 'Funcionario o proveedor' },
+  { id: 'peatonal', icon: 'PER', title: 'Registrar funcionario a pie', detail: 'Búsqueda autorizada por nombre o identificación' },
   { id: 'ocr', icon: 'OCR', title: 'Reconocer una placa', detail: 'Vehículo institucional o visita' },
   { id: 'visitante', icon: 'VIS', title: 'Registrar visitante', detail: 'Ingreso a pie y asignación de gafete' },
   { id: 'emergencia', icon: 'SOS', title: 'Lista de emergencia', detail: '38 personas dentro · disponible sin conexión' },
@@ -18,6 +19,7 @@ const actions = [
 export default function HomeScreen() {
   const { session, signOut } = useSession();
   const [apiConnected, setApiConnected] = useState<boolean | null>(null);
+  const [presenceCount, setPresenceCount] = useState<number | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -26,6 +28,10 @@ export default function HomeScreen() {
       .catch(() => setApiConnected(false));
     return () => controller.abort();
   }, []);
+
+  useFocusEffect(useCallback(() => {
+    if (session) getPresenceCount(session.token).then(setPresenceCount).catch(() => setPresenceCount(null));
+  }, [session]));
 
   if (!session) return <Redirect href={'/login' as Href} />;
 
@@ -80,7 +86,7 @@ export default function HomeScreen() {
                   <View style={styles.actionIcon}><Text style={styles.actionIconText}>{action.icon}</Text></View>
                   <View style={styles.actionText}>
                     <Text style={styles.actionTitle}>{action.title}</Text>
-                    <Text style={styles.actionDetail}>{action.detail}</Text>
+                    <Text style={styles.actionDetail}>{action.id === 'emergencia' && presenceCount !== null ? `${presenceCount} personas dentro · disponible sin conexión` : action.detail}</Text>
                   </View>
                   <Text style={styles.actionArrow}>›</Text>
                 </Pressable>
