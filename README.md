@@ -256,6 +256,20 @@ Copy-Item .env.example .env
 
 La pantalla inicial consulta `GET /health` y muestra `API conectada` cuando el backend está disponible. El archivo `.env` está excluido de Git y `.env.example` no contiene secretos.
 
+## Consulta móvil de catálogos
+
+La aplicación solicita una sesión JWT mediante `POST /api/v1/auth/login`. Después de iniciar sesión, la acción **Consultar catálogos** permite buscar por nombre, identificación o placa en funcionarios, vehículos institucionales y vehículos particulares.
+
+La consulta móvil:
+
+- muestra únicamente registros activos autorizados para la operación;
+- presenta solo identificación y datos operativos esenciales;
+- identifica cada resultado como funcionario, vehículo institucional o particular;
+- permite reconocer al propietario habitual de un vehículo particular;
+- no ofrece acciones para crear, editar, activar ni desactivar catálogos.
+
+La API aplica además autorización por rol a las rutas de consulta. La sesión móvil se mantiene en memoria durante la ejecución actual de la aplicación y se elimina al cerrar sesión.
+
 La arquitectura completa y las comunicaciones se encuentran en el repositorio `DRAT-REGISTRO-API`, dentro de `docs/architecture.md`, y en el [diagrama editable de FigJam](https://www.figma.com/board/JniN3acMMwkc28n4GDimNq).
 
 El 7 de septiembre de 2026 se verificaron ESLint, TypeScript y la compilación Android después de incorporar la configuración del backend.

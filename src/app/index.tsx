@@ -1,19 +1,22 @@
-import { router } from 'expo-router';
+import { Redirect, router, type Href } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SICAFColors as colors } from '@/constants/theme';
 import { getApiHealth } from '@/services/api';
+import { useSession } from '@/auth/SessionContext';
 
 const actions = [
   { id: 'nfc', icon: 'NFC', title: 'Escanear TAG NFC', detail: 'Funcionario o proveedor' },
   { id: 'ocr', icon: 'OCR', title: 'Reconocer una placa', detail: 'Vehículo institucional o visita' },
   { id: 'visitante', icon: 'VIS', title: 'Registrar visitante', detail: 'Ingreso a pie y asignación de gafete' },
   { id: 'emergencia', icon: 'SOS', title: 'Lista de emergencia', detail: '38 personas dentro · disponible sin conexión' },
+  { id: 'catalogos', icon: 'BUS', title: 'Consultar catálogos', detail: 'Funcionario, identificación o placa' },
 ] as const;
 
 export default function HomeScreen() {
+  const { session, signOut } = useSession();
   const [apiConnected, setApiConnected] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -23,6 +26,8 @@ export default function HomeScreen() {
       .catch(() => setApiConnected(false));
     return () => controller.abort();
   }, []);
+
+  if (!session) return <Redirect href={'/login' as Href} />;
 
   return (
     <View style={styles.screen}>
@@ -37,7 +42,8 @@ export default function HomeScreen() {
               </View>
             </View>
             <Text style={styles.greeting}>Buenos días</Text>
-            <Text style={styles.userName}>Guarda Demo</Text>
+            <Text style={styles.userName}>{session.user.name}</Text>
+            <Pressable onPress={signOut} style={styles.logout}><Text style={styles.logoutText}>Cerrar sesión</Text></Pressable>
             <View style={styles.syncBadge}>
               <View style={styles.syncDot} />
               <Text style={styles.syncText}>
@@ -64,7 +70,7 @@ export default function HomeScreen() {
                   accessibilityRole="button"
                   accessibilityLabel={action.title}
                   key={action.id}
-                  onPress={() =>
+                  onPress={() => action.id === 'catalogos' ? router.navigate('/catalogos' as Href) :
                     router.navigate({
                       pathname: '/registro/[tipo]',
                       params: { tipo: action.id },
@@ -107,6 +113,8 @@ const styles = StyleSheet.create({
   syncBadge: { flexDirection: 'row', alignItems: 'center', marginTop: 13 },
   syncDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#43D58B', marginRight: 7 },
   syncText: { color: '#D9E8ED', fontSize: 12, fontWeight: '600' },
+  logout: { alignSelf: 'flex-start', marginTop: 12, paddingHorizontal: 11, paddingVertical: 7, borderWidth: 1, borderColor: '#5F8799', borderRadius: 8 },
+  logoutText: { color: '#fff', fontSize: 11, fontWeight: '700' },
   body: { flex: 1, marginTop: -24, paddingHorizontal: 18, paddingBottom: 32, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: colors.background },
   stationCard: { minHeight: 82, flexDirection: 'row', alignItems: 'center', padding: 16, marginBottom: 28, borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, shadowColor: '#0B2E40', shadowOpacity: 0.09, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 3 },
   avatar: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginRight: 13, backgroundColor: '#E6F3EC' },
