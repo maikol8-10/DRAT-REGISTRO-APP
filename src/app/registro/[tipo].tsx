@@ -1,8 +1,11 @@
-import { router, useLocalSearchParams } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Redirect, router, useLocalSearchParams, type Href } from 'expo-router';
+import { useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SICAFColors as colors } from '@/constants/theme';
+import { useSession } from '@/auth/SessionContext';
+import { confirmNfcMovement, resolveNfcMovement, type NfcMovementResolution } from '@/services/api';
 
 const processNames: Record<string, string> = {
   nfc: 'Escanear TAG NFC',
@@ -13,6 +16,7 @@ const processNames: Record<string, string> = {
 
 export default function RegistrationScreen() {
   const { tipo } = useLocalSearchParams<{ tipo: string }>();
+  if (tipo === 'nfc') return <NfcSimulationScreen />;
   const title = processNames[tipo] ?? 'Proceso SICAF';
 
   return (
@@ -46,6 +50,50 @@ export default function RegistrationScreen() {
       </View>
     </SafeAreaView>
   );
+}
+
+function NfcSimulationScreen() {
+  const { session } = useSession();
+  const [code, setCode] = useState('');
+  const [resolution, setResolution] = useState<NfcMovementResolution | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  if (!session) return <Redirect href={'/login' as Href} />;
+
+  async function simulate() {
+    if (!session || !code.trim()) { setError('Ingrese el código de un TAG NFC.'); return; }
+    setLoading(true); setError(''); setSuccess(''); setResolution(null);
+    try { setResolution(await resolveNfcMovement(session.token, code)); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : 'No fue posible validar el TAG'); }
+    finally { setLoading(false); }
+  }
+
+  async function confirm() {
+    if (!session || !resolution) return;
+    setLoading(true); setError('');
+    try {
+      await confirmNfcMovement(session.token, resolution.tag.code, resolution.proposedMovement);
+      setSuccess(`${resolution.proposedMovement === 'INGRESO' ? 'Ingreso' : 'Salida'} registrado correctamente para ${resolution.employee.name}.`);
+      setResolution(null); setCode('');
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'No fue posible registrar el movimiento'); }
+    finally { setLoading(false); }
+  }
+
+  return <SafeAreaView style={styles.screen}>
+    <View style={styles.header}><Pressable onPress={() => router.back()} style={styles.backButton}><Text style={styles.backText}>‹ Volver</Text></Pressable><Text style={styles.brand}>SICAF · DRAT</Text></View>
+    <ScrollView contentContainerStyle={styles.nfcContent} keyboardShouldPersistTaps="handled">
+      <View style={styles.testBadge}><Text style={styles.testBadgeText}>MODO DE PRUEBA NFC · SIN LECTURA FÍSICA</Text></View>
+      <Text style={styles.eyebrow}>MOVIMIENTO DE FUNCIONARIO</Text><Text style={styles.title}>Simular lectura de TAG</Text>
+      <Text style={styles.description}>Digite el código registrado en Administración. El sistema identificará al funcionario y propondrá el siguiente movimiento válido.</Text>
+      <Text style={styles.fieldLabel}>Código NFC simulado</Text><TextInput autoCapitalize="characters" placeholder="Ejemplo: TAG-ANDRES-01" placeholderTextColor={colors.muted} value={code} onChangeText={setCode} editable={!resolution} style={styles.input} onSubmitEditing={() => void simulate()} />
+      {!resolution && <Pressable disabled={loading} onPress={() => void simulate()} style={styles.primaryButton}>{loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Simular lectura NFC</Text>}</Pressable>}
+      {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}{success ? <Text style={styles.success}>{success}</Text> : null}
+      {resolution && <View style={styles.confirmCard}><Text style={styles.confirmLabel}>FUNCIONARIO IDENTIFICADO</Text><Text style={styles.employeeName}>{resolution.employee.name}</Text><Text style={styles.employeeDetail}>{resolution.employee.identification} · {resolution.employee.department}</Text><View style={[styles.movementBadge, resolution.proposedMovement === 'SALIDA' && styles.exitBadge]}><Text style={styles.movementText}>Movimiento propuesto: {resolution.proposedMovement}</Text></View><Text style={styles.confirmQuestion}>¿Desea registrar este movimiento?</Text><Pressable disabled={loading} onPress={() => void confirm()} style={styles.primaryButton}>{loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Confirmar {resolution.proposedMovement.toLowerCase()}</Text>}</Pressable><Pressable disabled={loading} onPress={() => { setResolution(null); setCode(''); setError(''); }} style={styles.cancelButton}><Text style={styles.cancelText}>Cancelar operación</Text></Pressable></View>}
+      <View style={styles.notice}><Text style={styles.noticeTitle}>Validaciones activas</Text><Text style={styles.noticeText}>Un TAG desconocido, inactivo, duplicado o asociado con un funcionario inactivo no crea movimientos automáticamente.</Text></View>
+    </ScrollView>
+  </SafeAreaView>;
 }
 
 const styles = StyleSheet.create({
@@ -87,4 +135,17 @@ const styles = StyleSheet.create({
   },
   noticeTitle: { color: '#087344', fontSize: 14, fontWeight: '800' },
   noticeText: { color: '#3F6554', fontSize: 13, lineHeight: 20, marginTop: 5 },
+  nfcContent: { padding: 22, paddingBottom: 45 },
+  testBadge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 7, marginBottom: 24, borderRadius: 999, backgroundColor: '#FFF3D5' },
+  testBadgeText: { color: '#7D4C00', fontSize: 9, fontWeight: '900', letterSpacing: .5 },
+  fieldLabel: { marginTop: 24, marginBottom: 7, color: colors.text, fontSize: 12, fontWeight: '800' },
+  input: { height: 50, paddingHorizontal: 14, borderWidth: 1, borderColor: colors.border, borderRadius: 11, color: colors.text, backgroundColor: '#fff' },
+  primaryButton: { minHeight: 49, alignItems: 'center', justifyContent: 'center', marginTop: 13, paddingHorizontal: 16, borderRadius: 11, backgroundColor: colors.primary },
+  primaryButtonText: { color: '#fff', fontSize: 14, fontWeight: '800' },
+  error: { marginTop: 14, padding: 12, borderRadius: 10, color: '#9A2E2E', backgroundColor: '#FBEAEA' },
+  success: { marginTop: 14, padding: 12, borderRadius: 10, color: '#087344', backgroundColor: colors.successLight },
+  confirmCard: { padding: 18, marginTop: 18, borderWidth: 1, borderColor: colors.border, borderRadius: 16, backgroundColor: '#fff' },
+  confirmLabel: { color: colors.muted, fontSize: 10, fontWeight: '900', letterSpacing: 1 }, employeeName: { marginTop: 8, color: colors.text, fontSize: 22, fontWeight: '800' }, employeeDetail: { marginTop: 5, color: colors.muted, fontSize: 13 },
+  movementBadge: { alignSelf: 'flex-start', marginTop: 16, paddingHorizontal: 11, paddingVertical: 8, borderRadius: 999, backgroundColor: colors.successLight }, exitBadge: { backgroundColor: '#E8F1F8' }, movementText: { color: colors.text, fontSize: 11, fontWeight: '900' }, confirmQuestion: { marginTop: 20, color: colors.text, fontSize: 15, fontWeight: '700' },
+  cancelButton: { minHeight: 46, alignItems: 'center', justifyContent: 'center', marginTop: 9, borderWidth: 1, borderColor: colors.border, borderRadius: 11 }, cancelText: { color: colors.primary, fontWeight: '800' },
 });

@@ -270,6 +270,12 @@ La consulta móvil:
 
 La API aplica además autorización por rol a las rutas de consulta. La sesión móvil se mantiene en memoria durante la ejecución actual de la aplicación y se elimina al cerrar sesión.
 
+## Prueba simulada de movimientos NFC
+
+La acción **Escanear TAG NFC** dispone temporalmente de un modo de prueba claramente identificado. El guarda introduce el código asociado desde el panel web; la API valida el TAG y el funcionario, propone ingreso o salida de acuerdo con el último movimiento y solo registra después de una confirmación explícita. Cancelar no crea movimientos.
+
+Los movimientos simulados se guardan con el origen `NFC_SIMULADO`. La lectura real se incorporará como `NFC_FISICO` mediante una development build, reutilizando las mismas validaciones y confirmación.
+
 La arquitectura completa y las comunicaciones se encuentran en el repositorio `DRAT-REGISTRO-API`, dentro de `docs/architecture.md`, y en el [diagrama editable de FigJam](https://www.figma.com/board/JniN3acMMwkc28n4GDimNq).
 
 El 7 de septiembre de 2026 se verificaron ESLint, TypeScript y la compilación Android después de incorporar la configuración del backend.

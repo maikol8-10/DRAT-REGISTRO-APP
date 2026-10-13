@@ -51,3 +51,20 @@ export async function searchCatalogs(token: string, search: string): Promise<Cat
     ...privateVehicles.data.filter((item) => item.active && item.owner?.active).map((item): CatalogResult => ({ id: item.id, kind: 'PARTICULAR', title: `${item.brand} ${item.model}`, identifier: item.plate, detail: `Propietario: ${item.owner.name} · ${item.owner.identification}` })),
   ];
 }
+
+export type NfcMovementResolution = {
+  tag: { id: string; code: string };
+  employee: Employee;
+  proposedMovement: 'INGRESO' | 'SALIDA';
+  lastMovement: { movementType: 'INGRESO' | 'SALIDA'; occurredAt: string } | null;
+};
+
+export async function resolveNfcMovement(token: string, code: string) {
+  const response = await apiRequest<{ data: NfcMovementResolution }>('/api/v1/movements/employees/nfc/resolve', { method: 'POST', body: JSON.stringify({ code }) }, token);
+  return response.data;
+}
+
+export async function confirmNfcMovement(token: string, code: string, movementType: 'INGRESO' | 'SALIDA') {
+  const response = await apiRequest<{ data: { id: string; movementType: 'INGRESO' | 'SALIDA'; occurredAt: string } }>('/api/v1/movements/employees/nfc', { method: 'POST', body: JSON.stringify({ code, movementType, source: 'NFC_SIMULADO' }) }, token);
+  return response.data;
+}
