@@ -8,7 +8,7 @@ import { getApiHealth, getPresenceCount } from '@/services/api';
 import { useSession } from '@/auth/SessionContext';
 
 const actions = [
-  { id: 'nfc', icon: 'NFC', title: 'Escanear TAG NFC', detail: 'Funcionario o proveedor' },
+  { id: 'nfc', icon: 'NFC', title: 'Funcionario a pie con TAG', detail: 'Identificación rápida mediante gafete NFC' },
   { id: 'peatonal', icon: 'PER', title: 'Registrar funcionario a pie', detail: 'Búsqueda autorizada por nombre o identificación' },
   { id: 'ocr', icon: 'OCR', title: 'Reconocer una placa', detail: 'Vehículo institucional o visita' },
   { id: 'visitante', icon: 'VIS', title: 'Registrar visitante', detail: 'Ingreso a pie y asignación de gafete' },

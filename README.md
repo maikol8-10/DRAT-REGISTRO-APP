@@ -278,7 +278,7 @@ Los movimientos simulados se guardan con el origen `NFC_SIMULADO`. La lectura re
 
 ## Registro de funcionario a pie
 
-La acción **Registrar funcionario a pie** permite buscar personal activo por nombre o identificación, seleccionar a la persona y confirmar el ingreso o salida propuesto. El movimiento se registra como `BUSQUEDA_MANUAL`. Después de confirmar se muestra el aforo actualizado, y la pantalla principal vuelve a consultarlo al recuperar el foco.
+La acción **Registrar funcionario a pie** ofrece el gafete NFC como método principal y la búsqueda por nombre o identificación como contingencia. Ambos métodos comparten el mismo historial y proponen el siguiente ingreso o salida válido. La búsqueda manual se registra como `BUSQUEDA_MANUAL`. Después de confirmar se muestra el aforo actualizado, y la pantalla principal vuelve a consultarlo al recuperar el foco.
 
 La arquitectura completa y las comunicaciones se encuentran en el repositorio `DRAT-REGISTRO-API`, dentro de `docs/architecture.md`, y en el [diagrama editable de FigJam](https://www.figma.com/board/JniN3acMMwkc28n4GDimNq).
 
