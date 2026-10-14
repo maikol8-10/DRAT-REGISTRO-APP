@@ -16,7 +16,7 @@ export async function getApiHealth(signal?: AbortSignal): Promise<ApiHealth> {
 }
 
 export type Employee = { id: string; identification: string; name: string; department: string; position: string; active: boolean };
-export type NfcTagRecord = { id: string; code: string; employeeId: string; active: boolean; employee: Employee };
+export type NfcTagRecord = { id: string; code: string; employeeId: string | null; active: boolean; employee: Employee | null };
 type InstitutionalVehicle = { id: string; plate: string; brand: string; model: string; year: number; fuelType: string; active: boolean; ownershipType: 'INSTITUCIONAL' };
 type PrivateVehicle = { id: string; plate: string; brand: string; model: string; color: string; active: boolean; ownershipType: 'PARTICULAR'; owner: Pick<Employee, 'id' | 'identification' | 'name' | 'active'> };
 
@@ -25,6 +25,7 @@ async function apiRequest<T>(path: string, init: RequestInit = {}, token?: strin
   if (init.body) headers.set('Content-Type', 'application/json');
   if (token) headers.set('Authorization', `Bearer ${token}`);
   const response = await fetch(`${env.apiUrl}${path}`, { ...init, headers });
+  if (response.status === 204) return undefined as T;
   const body = (await response.json()) as T & { error?: string };
   if (!response.ok) throw new Error(body.error ?? `La API respondió con estado ${response.status}`);
   return body;
@@ -106,4 +107,13 @@ export async function getNfcTags(token: string) {
 export async function createNfcTag(token: string, input: { code: string; employeeId: string }) {
   const response = await apiRequest<{ data: NfcTagRecord }>('/api/v1/catalogs/nfc-tags', { method: 'POST', body: JSON.stringify(input) }, token);
   return response.data;
+}
+
+export async function updateNfcTag(token: string, id: string, input: { employeeId?: string | null; active?: boolean }) {
+  const response = await apiRequest<{ data: NfcTagRecord }>(`/api/v1/catalogs/nfc-tags/${id}`, { method: 'PATCH', body: JSON.stringify(input) }, token);
+  return response.data;
+}
+
+export async function deleteNfcTag(token: string, id: string) {
+  await apiRequest<void>(`/api/v1/catalogs/nfc-tags/${id}`, { method: 'DELETE' }, token);
 }
