@@ -97,6 +97,23 @@ export async function getPresenceCount(token: string) {
   return response.data.count;
 }
 
+export type ActiveVisitorVisit = { id: string; identification: string; name: string; reason: string; badgeCode: string; entryAt: string };
+
+export async function registerVisitorEntry(token: string, input: { identification: string; name: string; reason: string; badgeCode: string }) {
+  const response = await apiRequest<{ data: ActiveVisitorVisit }>('/api/v1/movements/visitors/entry', { method: 'POST', body: JSON.stringify(input) }, token);
+  return response.data;
+}
+
+export async function getActiveVisitorVisits(token: string, search = '') {
+  const response = await apiRequest<{ data: ActiveVisitorVisit[] }>(`/api/v1/movements/visitors/active?search=${encodeURIComponent(search.trim())}`, {}, token);
+  return response.data;
+}
+
+export async function registerVisitorExit(token: string, visitId: string) {
+  const response = await apiRequest<{ data: ActiveVisitorVisit }>(`/api/v1/movements/visitors/${visitId}/exit`, { method: 'POST' }, token);
+  return response.data;
+}
+
 export type PrivateVehicleMovementResolution = {
   vehicle: { id: string; plate: string; brand: string; model: string; color: string };
   habitualDriver: Employee;
@@ -109,7 +126,7 @@ export async function resolvePrivateVehicleMovement(token: string, plate: string
   return response.data;
 }
 
-export async function confirmPrivateVehicleMovement(token: string, input: { plate: string; driverEmployeeId: string; occupantEmployeeIds: string[]; movementType: 'INGRESO' | 'SALIDA' }) {
+export async function confirmPrivateVehicleMovement(token: string, input: { plate: string; driverEmployeeId?: string; driverVisitorVisitId?: string; ownerAuthorizationConfirmed?: boolean; authorizationNote?: string; occupantEmployeeIds: string[]; movementType: 'INGRESO' | 'SALIDA' }) {
   const response = await apiRequest<{ data: { id: string; movementType: 'INGRESO' | 'SALIDA'; occurredAt: string } }>('/api/v1/movements/private-vehicles', { method: 'POST', body: JSON.stringify({ ...input, source: 'PLACA_MANUAL' }) }, token);
   return response.data;
 }

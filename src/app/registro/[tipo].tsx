@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SICAFColors as colors } from '@/constants/theme';
 import { useSession } from '@/auth/SessionContext';
-import { confirmInstitutionalDeparture, confirmInstitutionalReturn, confirmManualMovement, confirmNfcMovement, confirmPrivateVehicleMovement, getPresenceCount, resolveInstitutionalDeparture, resolveInstitutionalReturn, resolveManualMovement, resolveNfcMovement, resolvePrivateVehicleMovement, searchActiveEmployees, type Employee, type InstitutionalTrip, type ManualMovementResolution, type NfcMovementResolution, type PrivateVehicleMovementResolution } from '@/services/api';
+import { confirmInstitutionalDeparture, confirmInstitutionalReturn, confirmManualMovement, confirmNfcMovement, confirmPrivateVehicleMovement, getActiveVisitorVisits, getPresenceCount, registerVisitorEntry, registerVisitorExit, resolveInstitutionalDeparture, resolveInstitutionalReturn, resolveManualMovement, resolveNfcMovement, resolvePrivateVehicleMovement, searchActiveEmployees, type ActiveVisitorVisit, type Employee, type InstitutionalTrip, type ManualMovementResolution, type NfcMovementResolution, type PrivateVehicleMovementResolution } from '@/services/api';
 import { readPhysicalNfcUid } from '@/services/nfc';
 
 const processNames: Record<string, string> = {
@@ -21,6 +21,7 @@ export default function RegistrationScreen() {
   if (tipo === 'peatonal') return <ManualEmployeeMovementScreen />;
   if (tipo === 'vehiculo') return <PrivateVehicleMovementScreen />;
   if (tipo === 'institucional') return <InstitutionalVehicleMovementScreen />;
+  if (tipo === 'visitante') return <VisitorMovementScreen />;
   const title = processNames[tipo] ?? 'Proceso SICAF';
 
   return (
@@ -56,6 +57,29 @@ export default function RegistrationScreen() {
   );
 }
 
+function VisitorMovementScreen() {
+  const { session } = useSession();
+  const [identification, setIdentification] = useState(''); const [name, setName] = useState('');
+  const [reason, setReason] = useState(''); const [badgeCode, setBadgeCode] = useState('');
+  const [activeVisits, setActiveVisits] = useState<ActiveVisitorVisit[]>([]);
+  const [loading, setLoading] = useState(false); const [error, setError] = useState(''); const [success, setSuccess] = useState('');
+  if (!session) return <Redirect href={'/login' as Href} />;
+  async function loadActive() { setLoading(true); setError(''); try { setActiveVisits(await getActiveVisitorVisits(session!.token)); } catch (cause) { setError(cause instanceof Error ? cause.message : 'No fue posible cargar las visitas activas'); } finally { setLoading(false); } }
+  async function enter() { setLoading(true); setError(''); setSuccess(''); try { const visit = await registerVisitorEntry(session!.token, { identification, name, reason, badgeCode }); setSuccess(`Ingreso registrado para ${visit.name}. Gafete ${visit.badgeCode}.`); setIdentification(''); setName(''); setReason(''); setBadgeCode(''); await loadActive(); } catch (cause) { setError(cause instanceof Error ? cause.message : 'No fue posible registrar la visita'); } finally { setLoading(false); } }
+  async function exit(visit: ActiveVisitorVisit) { setLoading(true); setError(''); try { await registerVisitorExit(session!.token, visit.id); setSuccess(`Salida registrada para ${visit.name}.`); await loadActive(); } catch (cause) { setError(cause instanceof Error ? cause.message : 'No fue posible registrar la salida'); } finally { setLoading(false); } }
+  return <SafeAreaView style={styles.screen}><View style={styles.header}><Pressable onPress={() => router.back()} style={styles.backButton}><Text style={styles.backText}>‹ Volver</Text></Pressable><Text style={styles.brand}>SICAF · DRAT</Text></View><ScrollView contentContainerStyle={styles.nfcContent} keyboardShouldPersistTaps="handled">
+    <Text style={styles.eyebrow}>CONTROL DE VISITAS</Text><Text style={styles.title}>Registrar visitante</Text><Text style={styles.description}>Registre a toda persona externa antes de permitirle ingresar o retirar un vehículo.</Text>
+    <Text style={styles.fieldLabel}>Identificación</Text><TextInput value={identification} onChangeText={setIdentification} autoCapitalize="characters" style={styles.input}/>
+    <Text style={styles.fieldLabel}>Nombre completo</Text><TextInput value={name} onChangeText={setName} style={styles.input}/>
+    <Text style={styles.fieldLabel}>Motivo de visita</Text><TextInput value={reason} onChangeText={setReason} style={styles.input}/>
+    <Text style={styles.fieldLabel}>Código del gafete</Text><TextInput value={badgeCode} onChangeText={setBadgeCode} autoCapitalize="characters" style={styles.input}/>
+    <Pressable disabled={loading} onPress={() => void enter()} style={styles.primaryButton}>{loading ? <ActivityIndicator color="#fff"/> : <Text style={styles.primaryButtonText}>Registrar ingreso</Text>}</Pressable>
+    <Pressable disabled={loading} onPress={() => void loadActive()} style={styles.cancelButton}><Text style={styles.cancelText}>Ver visitantes dentro</Text></Pressable>
+    {activeVisits.map((visit) => <View key={visit.id} style={styles.employeeResult}><Text style={styles.employeeResultName}>{visit.name}</Text><Text style={styles.employeeDetail}>{visit.identification} · Gafete {visit.badgeCode}</Text><Text style={styles.employeeDetail}>{visit.reason}</Text><Pressable onPress={() => void exit(visit)}><Text style={styles.removeText}>Registrar salida peatonal</Text></Pressable></View>)}
+    {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}{success ? <Text style={styles.success}>{success}</Text> : null}
+  </ScrollView></SafeAreaView>;
+}
+
 function InstitutionalVehicleMovementScreen() {
   const { session } = useSession();
   const [mode, setMode] = useState<'SALIDA' | 'INGRESO'>('SALIDA');
@@ -89,6 +113,10 @@ function PrivateVehicleMovementScreen() {
   const [plate, setPlate] = useState('');
   const [resolution, setResolution] = useState<PrivateVehicleMovementResolution | null>(null);
   const [driver, setDriver] = useState<Employee | null>(null);
+  const [visitorDriver, setVisitorDriver] = useState<ActiveVisitorVisit | null>(null);
+  const [visitorResults, setVisitorResults] = useState<ActiveVisitorVisit[]>([]);
+  const [authorizationConfirmed, setAuthorizationConfirmed] = useState(false);
+  const [authorizationNote, setAuthorizationNote] = useState('');
   const [occupants, setOccupants] = useState<Employee[]>([]);
   const [search, setSearch] = useState('');
   const [results, setResults] = useState<Employee[]>([]);
@@ -105,7 +133,7 @@ function PrivateVehicleMovementScreen() {
     setLoading(true); setError(''); setSuccess(''); setUnknownPlate(false);
     try {
       const found = await resolvePrivateVehicleMovement(session!.token, plate);
-      setResolution(found); setPlate(found.vehicle.plate); setDriver(found.habitualDriver); setOccupants([]); setResults([]);
+      setResolution(found); setPlate(found.vehicle.plate); setDriver(found.habitualDriver); setVisitorDriver(null); setOccupants([]); setResults([]); setVisitorResults([]); setAuthorizationConfirmed(false); setAuthorizationNote('');
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : 'No fue posible consultar la placa';
       setError(message); setUnknownPlate(message.toLowerCase().includes('desconocida'));
@@ -120,9 +148,16 @@ function PrivateVehicleMovementScreen() {
     finally { setLoading(false); }
   }
 
+  async function findVisitors() {
+    setLoading(true); setError('');
+    try { setVisitorResults(await getActiveVisitorVisits(session!.token, search)); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : 'No fue posible buscar visitantes activos'); }
+    finally { setLoading(false); }
+  }
+
   function selectPerson(employee: Employee) {
     if (selectionMode === 'DRIVER') {
-      setDriver(employee); setOccupants((current) => current.filter((item) => item.id !== employee.id));
+      setDriver(employee); setVisitorDriver(null); setOccupants((current) => current.filter((item) => item.id !== employee.id));
       setSelectionMode('OCCUPANT');
     } else if (employee.id === driver?.id) setError('El conductor no puede agregarse como acompañante.');
     else if (occupants.some((item) => item.id === employee.id)) setError('El funcionario ya está agregado como acompañante.');
@@ -144,13 +179,13 @@ function PrivateVehicleMovementScreen() {
   }
 
   async function confirm() {
-    if (!resolution || !driver) return;
+    if (!resolution || (!driver && !visitorDriver)) return;
     setLoading(true); setError('');
     try {
-      await confirmPrivateVehicleMovement(session!.token, { plate: resolution.vehicle.plate, driverEmployeeId: driver.id, occupantEmployeeIds: occupants.map((item) => item.id), movementType: resolution.proposedMovement });
+      await confirmPrivateVehicleMovement(session!.token, { plate: resolution.vehicle.plate, driverEmployeeId: driver?.id, driverVisitorVisitId: visitorDriver?.id, ownerAuthorizationConfirmed: visitorDriver ? authorizationConfirmed : undefined, authorizationNote: visitorDriver ? authorizationNote : undefined, occupantEmployeeIds: occupants.map((item) => item.id), movementType: resolution.proposedMovement });
       const count = await getPresenceCount(session!.token);
       setSuccess(`${resolution.proposedMovement === 'INGRESO' ? 'Ingreso' : 'Salida'} del vehículo registrado. Aforo actual: ${count}.`);
-      setResolution(null); setDriver(null); setOccupants([]); setPlate('');
+      setResolution(null); setDriver(null); setVisitorDriver(null); setOccupants([]); setPlate(''); setAuthorizationConfirmed(false); setAuthorizationNote('');
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'No fue posible registrar el movimiento'); }
     finally { setLoading(false); }
   }
@@ -161,11 +196,14 @@ function PrivateVehicleMovementScreen() {
       <Text style={styles.eyebrow}>MOVIMIENTO VEHICULAR</Text><Text style={styles.title}>Vehículo particular</Text><Text style={styles.description}>Ingrese la placa para identificar el vehículo y su conductor habitual. El reconocimiento por cámara se conectará posteriormente.</Text>
       {!resolution && <><Text style={styles.fieldLabel}>Placa</Text><TextInput autoCapitalize="characters" placeholder="Ejemplo: ABC123" placeholderTextColor={colors.muted} value={plate} onChangeText={setPlate} style={styles.input} onSubmitEditing={() => void findVehicle()} /><Pressable disabled={loading} onPress={() => void findVehicle()} style={styles.primaryButton}>{loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Buscar placa</Text>}</Pressable></>}
       {unknownPlate && <Pressable onPress={() => router.replace({ pathname: '/registro/[tipo]', params: { tipo: 'visitante' } })} style={styles.cancelButton}><Text style={styles.cancelText}>Continuar con flujo de visitantes</Text></Pressable>}
-      {resolution && driver && <View style={styles.confirmCard}>
+      {resolution && <View style={styles.confirmCard}>
         <Text style={styles.confirmLabel}>VEHÍCULO IDENTIFICADO</Text><Text style={styles.employeeName}>{resolution.vehicle.plate}</Text><Text style={styles.employeeDetail}>{resolution.vehicle.brand} {resolution.vehicle.model} · {resolution.vehicle.color}</Text>
         <View style={[styles.movementBadge, resolution.proposedMovement === 'SALIDA' && styles.exitBadge]}><Text style={styles.movementText}>Movimiento propuesto: {resolution.proposedMovement}</Text></View>
-        <Text style={styles.fieldLabel}>Conductor</Text><Text style={styles.employeeResultName}>{driver.name}</Text><Text style={styles.employeeDetail}>{driver.identification} · {driver.department}</Text>
+        {(driver || visitorDriver) && <><Text style={styles.fieldLabel}>Persona que conduce o retira</Text><Text style={styles.employeeResultName}>{driver?.name ?? visitorDriver?.name}</Text><Text style={styles.employeeDetail}>{driver ? `${driver.identification} · ${driver.department}` : `${visitorDriver?.identification} · Visitante · Gafete ${visitorDriver?.badgeCode}`}</Text></>}
         <Pressable onPress={() => { setSelectionMode('DRIVER'); setResults([]); setSearch(''); }} style={styles.cancelButton}><Text style={styles.cancelText}>Cambiar conductor</Text></Pressable>
+        {resolution.proposedMovement === 'SALIDA' && <Pressable onPress={() => { setDriver(null); setVisitorDriver(null); setVisitorResults([]); setResults([]); setSearch(''); }} style={styles.cancelButton}><Text style={styles.cancelText}>El vehículo será retirado por un visitante</Text></Pressable>}
+        {!driver && !visitorDriver && resolution.proposedMovement === 'SALIDA' && <><Text style={styles.fieldLabel}>Buscar visitante activo</Text><TextInput placeholder="Nombre, identificación o gafete" placeholderTextColor={colors.muted} value={search} onChangeText={setSearch} style={styles.input}/><Pressable disabled={loading} onPress={() => void findVisitors()} style={styles.cancelButton}><Text style={styles.cancelText}>Buscar visitante</Text></Pressable>{visitorResults.map((visit) => <Pressable key={visit.id} onPress={() => { setVisitorDriver(visit); setVisitorResults([]); setSearch(''); }} style={styles.employeeResult}><Text style={styles.employeeResultName}>{visit.name}</Text><Text style={styles.employeeDetail}>{visit.identification} · Gafete {visit.badgeCode}</Text><Text style={styles.selectText}>Seleccionar ›</Text></Pressable>)}</>}
+        {visitorDriver && <><Pressable onPress={() => setAuthorizationConfirmed((value) => !value)} style={styles.cancelButton}><Text style={styles.cancelText}>{authorizationConfirmed ? '✓ ' : '○ '}Confirmo autorización del propietario</Text></Pressable><Text style={styles.fieldLabel}>Observación de autorización</Text><TextInput placeholder="Ejemplo: propietario confirmó personalmente" placeholderTextColor={colors.muted} value={authorizationNote} onChangeText={setAuthorizationNote} style={styles.input}/></>}
         <Text style={styles.fieldLabel}>Acompañantes ({occupants.length})</Text>
         {occupants.map((item) => <View key={item.id} style={styles.occupantRow}><View><Text style={styles.employeeResultName}>{item.name}</Text><Text style={styles.employeeDetail}>{item.identification}</Text></View><Pressable onPress={() => setOccupants((current) => current.filter((person) => person.id !== item.id))}><Text style={styles.removeText}>Quitar</Text></Pressable></View>)}
         <Pressable disabled={loading} onPress={() => void scanOccupant()} style={styles.nfcMethodButton}><View style={styles.nfcMethodIcon}><Text style={styles.nfcMethodIconText}>NFC</Text></View><View style={styles.nfcMethodText}><Text style={styles.nfcMethodTitle}>Leer TAG de acompañante</Text><Text style={styles.employeeDetail}>Cada funcionario se identifica individualmente</Text></View></Pressable>
@@ -173,7 +211,7 @@ function PrivateVehicleMovementScreen() {
         <TextInput placeholder="Nombre o identificación" placeholderTextColor={colors.muted} value={search} onChangeText={setSearch} style={styles.input} onFocus={() => { if (selectionMode !== 'DRIVER') setSelectionMode('OCCUPANT'); }} onSubmitEditing={() => void findPeople()} />
         <Pressable disabled={loading} onPress={() => void findPeople()} style={styles.cancelButton}><Text style={styles.cancelText}>Buscar {selectionMode === 'DRIVER' ? 'conductor' : 'acompañante'}</Text></Pressable>
         <View style={styles.employeeResults}>{results.map((employee) => <Pressable key={employee.id} onPress={() => selectPerson(employee)} style={styles.employeeResult}><Text style={styles.employeeResultName}>{employee.name}</Text><Text style={styles.employeeDetail}>{employee.identification} · {employee.department}</Text><Text style={styles.selectText}>Seleccionar ›</Text></Pressable>)}</View>
-        <Text style={styles.confirmQuestion}>¿Confirma el movimiento del vehículo y sus ocupantes?</Text><Pressable disabled={loading} onPress={() => void confirm()} style={styles.primaryButton}>{loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Confirmar {resolution.proposedMovement.toLowerCase()}</Text>}</Pressable><Pressable onPress={() => { setResolution(null); setDriver(null); setOccupants([]); setResults([]); }} style={styles.cancelButton}><Text style={styles.cancelText}>Cancelar operación</Text></Pressable>
+        <Text style={styles.confirmQuestion}>¿Confirma el movimiento del vehículo y sus ocupantes?</Text><Pressable disabled={loading || (!driver && !visitorDriver)} onPress={() => void confirm()} style={styles.primaryButton}>{loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Confirmar {resolution.proposedMovement.toLowerCase()}</Text>}</Pressable><Pressable onPress={() => { setResolution(null); setDriver(null); setVisitorDriver(null); setOccupants([]); setResults([]); }} style={styles.cancelButton}><Text style={styles.cancelText}>Cancelar operación</Text></Pressable>
       </View>}
       {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}{success ? <Text style={styles.success}>{success}</Text> : null}
       <View style={styles.notice}><Text style={styles.noticeTitle}>Registro único</Text><Text style={styles.noticeText}>El conductor se registra una sola vez. Los acompañantes se agregan individualmente y una placa desconocida se envía al flujo de visitantes.</Text></View>
