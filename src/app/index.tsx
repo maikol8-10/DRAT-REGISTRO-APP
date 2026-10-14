@@ -8,8 +8,7 @@ import { getApiHealth, getPresenceCount } from '@/services/api';
 import { useSession } from '@/auth/SessionContext';
 
 const actions = [
-  { id: 'nfc', icon: 'NFC', title: 'Funcionario a pie con TAG', detail: 'Identificación rápida mediante gafete NFC' },
-  { id: 'peatonal', icon: 'PER', title: 'Registrar funcionario a pie', detail: 'Búsqueda autorizada por nombre o identificación' },
+  { id: 'peatonal', icon: 'PER', title: 'Funcionario a pie', detail: 'Identificación mediante TAG NFC o búsqueda manual' },
   { id: 'ocr', icon: 'OCR', title: 'Reconocer una placa', detail: 'Vehículo institucional o visita' },
   { id: 'visitante', icon: 'VIS', title: 'Registrar visitante', detail: 'Ingreso a pie y asignación de gafete' },
   { id: 'emergencia', icon: 'SOS', title: 'Lista de emergencia', detail: '38 personas dentro · disponible sin conexión' },
@@ -104,7 +103,7 @@ export default function HomeScreen() {
 
             <View style={styles.notice}>
               <Text style={styles.noticeTitle}>Modo de demostración</Text>
-              <Text style={styles.noticeText}>NFC, OCR y consulta de identidad se conectarán en entregables posteriores.</Text>
+              <Text style={styles.noticeText}>La lectura NFC está habilitada. OCR y consulta de identidad se conectarán en entregables posteriores.</Text>
             </View>
           </View>
         </ScrollView>
