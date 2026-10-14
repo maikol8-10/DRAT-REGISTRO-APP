@@ -111,6 +111,33 @@ export async function confirmPrivateVehicleMovement(token: string, input: { plat
   return response.data;
 }
 
+export type InstitutionalTrip = {
+  id: string; soinNumber: string; destination: string; departureMileage: number; departureFuel: number;
+  departureAt: string; returnMileage: number | null; returnFuel: number | null; returnAt: string | null;
+  vehicle: { id: string; plate: string; brand: string; model: string; assetCode: string };
+  driver: Employee; occupants: Employee[];
+};
+
+export async function resolveInstitutionalDeparture(token: string, plate: string) {
+  const response = await apiRequest<{ data: { vehicle: InstitutionalVehicle & { assetCode: string } } }>('/api/v1/movements/institutional-vehicles/departure/resolve', { method: 'POST', body: JSON.stringify({ plate }) }, token);
+  return response.data;
+}
+
+export async function confirmInstitutionalDeparture(token: string, input: { plate: string; soinNumber: string; mileage: number; fuel: number; destination: string; driverEmployeeId: string; occupantEmployeeIds: string[] }) {
+  const response = await apiRequest<{ data: InstitutionalTrip }>('/api/v1/movements/institutional-vehicles/departure', { method: 'POST', body: JSON.stringify(input) }, token);
+  return response.data;
+}
+
+export async function resolveInstitutionalReturn(token: string, soinNumber: string) {
+  const response = await apiRequest<{ data: InstitutionalTrip }>('/api/v1/movements/institutional-vehicles/return/resolve', { method: 'POST', body: JSON.stringify({ soinNumber }) }, token);
+  return response.data;
+}
+
+export async function confirmInstitutionalReturn(token: string, input: { soinNumber: string; mileage: number; fuel: number }) {
+  const response = await apiRequest<{ data: InstitutionalTrip }>('/api/v1/movements/institutional-vehicles/return', { method: 'POST', body: JSON.stringify(input) }, token);
+  return response.data;
+}
+
 export async function getEmployees(token: string) {
   const response = await apiRequest<{ data: Employee[] }>('/api/v1/catalogs/employees', {}, token);
   return response.data;

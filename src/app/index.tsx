@@ -10,6 +10,7 @@ import { useSession } from '@/auth/SessionContext';
 const actions = [
   { id: 'peatonal', icon: 'PER', title: 'Funcionario a pie', detail: 'Identificación mediante TAG NFC o búsqueda manual' },
   { id: 'vehiculo', icon: 'PLA', title: 'Vehículo particular', detail: 'Buscar placa, conductor y acompañantes' },
+  { id: 'institucional', icon: 'SOIN', title: 'Vehículo institucional', detail: 'Registrar salida o ingreso mediante boleta SOIN' },
   { id: 'visitante', icon: 'VIS', title: 'Registrar visitante', detail: 'Ingreso a pie y asignación de gafete' },
   { id: 'emergencia', icon: 'SOS', title: 'Lista de emergencia', detail: '38 personas dentro · disponible sin conexión' },
   { id: 'catalogos', icon: 'BUS', title: 'Consultar catálogos', detail: 'Funcionario, identificación o placa' },

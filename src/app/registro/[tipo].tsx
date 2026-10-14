@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SICAFColors as colors } from '@/constants/theme';
 import { useSession } from '@/auth/SessionContext';
-import { confirmManualMovement, confirmNfcMovement, confirmPrivateVehicleMovement, getPresenceCount, resolveManualMovement, resolveNfcMovement, resolvePrivateVehicleMovement, searchActiveEmployees, type Employee, type ManualMovementResolution, type NfcMovementResolution, type PrivateVehicleMovementResolution } from '@/services/api';
+import { confirmInstitutionalDeparture, confirmInstitutionalReturn, confirmManualMovement, confirmNfcMovement, confirmPrivateVehicleMovement, getPresenceCount, resolveInstitutionalDeparture, resolveInstitutionalReturn, resolveManualMovement, resolveNfcMovement, resolvePrivateVehicleMovement, searchActiveEmployees, type Employee, type InstitutionalTrip, type ManualMovementResolution, type NfcMovementResolution, type PrivateVehicleMovementResolution } from '@/services/api';
 import { readPhysicalNfcUid } from '@/services/nfc';
 
 const processNames: Record<string, string> = {
@@ -20,6 +20,7 @@ export default function RegistrationScreen() {
   if (tipo === 'nfc') return <NfcMovementScreen />;
   if (tipo === 'peatonal') return <ManualEmployeeMovementScreen />;
   if (tipo === 'vehiculo') return <PrivateVehicleMovementScreen />;
+  if (tipo === 'institucional') return <InstitutionalVehicleMovementScreen />;
   const title = processNames[tipo] ?? 'Proceso SICAF';
 
   return (
@@ -55,6 +56,34 @@ export default function RegistrationScreen() {
   );
 }
 
+function InstitutionalVehicleMovementScreen() {
+  const { session } = useSession();
+  const [mode, setMode] = useState<'SALIDA' | 'INGRESO'>('SALIDA');
+  const [plate, setPlate] = useState(''); const [soin, setSoin] = useState('');
+  const [mileage, setMileage] = useState(''); const [fuel, setFuel] = useState(''); const [destination, setDestination] = useState('');
+  const [vehicle, setVehicle] = useState<{ plate: string; brand: string; model: string; assetCode: string } | null>(null);
+  const [trip, setTrip] = useState<InstitutionalTrip | null>(null); const [driver, setDriver] = useState<Employee | null>(null); const [tripOccupants, setTripOccupants] = useState<Employee[]>([]);
+  const [search, setSearch] = useState(''); const [results, setResults] = useState<Employee[]>([]);
+  const [loading, setLoading] = useState(false); const [error, setError] = useState(''); const [success, setSuccess] = useState('');
+  if (!session) return <Redirect href={'/login' as Href} />;
+  const reset = (next: 'SALIDA' | 'INGRESO') => { setMode(next); setVehicle(null); setTrip(null); setDriver(null); setTripOccupants([]); setResults([]); setError(''); setSuccess(''); setMileage(''); setFuel(''); };
+  async function resolve() { setLoading(true); setError(''); setSuccess(''); try { if (mode === 'SALIDA') setVehicle((await resolveInstitutionalDeparture(session!.token, plate)).vehicle); else { const found = await resolveInstitutionalReturn(session!.token, soin); setTrip(found); setSoin(found.soinNumber); } } catch (reason) { setError(reason instanceof Error ? reason.message : 'No fue posible consultar el viaje'); } finally { setLoading(false); } }
+  async function findDriver() { setLoading(true); setError(''); try { setResults(await searchActiveEmployees(session!.token, search)); } catch (reason) { setError(reason instanceof Error ? reason.message : 'No fue posible buscar funcionarios'); } finally { setLoading(false); } }
+  async function confirm() { setLoading(true); setError(''); try { if (mode === 'SALIDA') { if (!vehicle || !driver) throw new Error('Seleccione el vehículo y el chofer.'); await confirmInstitutionalDeparture(session!.token, { plate: vehicle.plate, soinNumber: soin, mileage: Number(mileage), fuel: Number(fuel), destination, driverEmployeeId: driver.id, occupantEmployeeIds: tripOccupants.map((item) => item.id) }); setSuccess('Salida institucional registrada correctamente.'); } else { if (!trip) throw new Error('Consulte primero la boleta SOIN.'); await confirmInstitutionalReturn(session!.token, { soinNumber: trip.soinNumber, mileage: Number(mileage), fuel: Number(fuel) }); setSuccess('Ingreso institucional registrado correctamente.'); } setVehicle(null); setTrip(null); setDriver(null); setTripOccupants([]); setMileage(''); setFuel(''); } catch (reason) { setError(reason instanceof Error ? reason.message : 'No fue posible registrar el movimiento'); } finally { setLoading(false); } }
+  const ready = mode === 'SALIDA' ? vehicle : trip;
+  return <SafeAreaView style={styles.screen}><View style={styles.header}><Pressable onPress={() => router.back()} style={styles.backButton}><Text style={styles.backText}>‹ Volver</Text></Pressable><Text style={styles.brand}>SICAF · DRAT</Text></View><ScrollView contentContainerStyle={styles.nfcContent} keyboardShouldPersistTaps="handled">
+    <Text style={styles.eyebrow}>CONTROL DE FLOTILLA</Text><Text style={styles.title}>Vehículo institucional</Text><Text style={styles.description}>La boleta SOIN conserva los datos del viaje y relaciona automáticamente la salida con su ingreso.</Text>
+    <View style={styles.modeRow}><Pressable onPress={() => reset('SALIDA')} style={[styles.modeButton, mode === 'SALIDA' && styles.modeActive]}><Text style={mode === 'SALIDA' ? styles.modeActiveText : styles.cancelText}>Registrar salida</Text></Pressable><Pressable onPress={() => reset('INGRESO')} style={[styles.modeButton, mode === 'INGRESO' && styles.modeActive]}><Text style={mode === 'INGRESO' ? styles.modeActiveText : styles.cancelText}>Registrar ingreso</Text></Pressable></View>
+    {!ready && <><Text style={styles.fieldLabel}>{mode === 'SALIDA' ? 'Placa institucional' : 'Número de boleta SOIN'}</Text><TextInput autoCapitalize="characters" value={mode === 'SALIDA' ? plate : soin} onChangeText={mode === 'SALIDA' ? setPlate : setSoin} placeholder={mode === 'SALIDA' ? 'Ejemplo: SM1234' : 'Ejemplo: SOIN-2026-001'} placeholderTextColor={colors.muted} style={styles.input}/><Pressable disabled={loading} onPress={() => void resolve()} style={styles.primaryButton}><Text style={styles.primaryButtonText}>Consultar</Text></Pressable></>}
+    {ready && <View style={styles.confirmCard}><Text style={styles.confirmLabel}>{mode === 'SALIDA' ? 'VEHÍCULO IDENTIFICADO' : 'VIAJE SOIN IDENTIFICADO'}</Text><Text style={styles.employeeName}>{mode === 'SALIDA' ? vehicle?.plate : trip?.vehicle.plate}</Text><Text style={styles.employeeDetail}>{mode === 'SALIDA' ? `${vehicle?.brand} ${vehicle?.model} · Activo ${vehicle?.assetCode}` : `${trip?.vehicle.brand} ${trip?.vehicle.model} · ${trip?.destination}`}</Text>
+      {mode === 'INGRESO' && trip && <><Text style={styles.fieldLabel}>Datos asociados</Text><Text style={styles.employeeResultName}>Chofer: {trip.driver.name}</Text><Text style={styles.employeeDetail}>Salida: {trip.departureMileage} km · {trip.departureFuel}% combustible · {trip.occupants.length} acompañantes</Text></>}
+      {mode === 'SALIDA' && !driver && <><Text style={styles.fieldLabel}>Buscar chofer</Text><TextInput value={search} onChangeText={setSearch} placeholder="Nombre o identificación" placeholderTextColor={colors.muted} style={styles.input}/><Pressable onPress={() => void findDriver()} style={styles.cancelButton}><Text style={styles.cancelText}>Buscar chofer</Text></Pressable>{results.map((item) => <Pressable key={item.id} onPress={() => { setDriver(item); setResults([]); setSearch(''); }} style={styles.employeeResult}><Text style={styles.employeeResultName}>{item.name}</Text><Text style={styles.employeeDetail}>{item.identification} · {item.department}</Text></Pressable>)}</>}
+      {mode === 'SALIDA' && driver && <><Text style={styles.fieldLabel}>Chofer</Text><Text style={styles.employeeResultName}>{driver.name}</Text><Pressable onPress={() => setDriver(null)} style={styles.cancelButton}><Text style={styles.cancelText}>Cambiar chofer</Text></Pressable><Text style={styles.fieldLabel}>Acompañantes ({tripOccupants.length})</Text>{tripOccupants.map((item) => <View key={item.id} style={styles.occupantRow}><Text style={styles.employeeResultName}>{item.name}</Text><Pressable onPress={() => setTripOccupants((current) => current.filter((person) => person.id !== item.id))}><Text style={styles.removeText}>Quitar</Text></Pressable></View>)}<TextInput value={search} onChangeText={setSearch} placeholder="Nombre o identificación del acompañante" placeholderTextColor={colors.muted} style={styles.input}/><Pressable onPress={() => void findDriver()} style={styles.cancelButton}><Text style={styles.cancelText}>Buscar acompañante</Text></Pressable>{results.map((item) => <Pressable key={item.id} onPress={() => { if (item.id === driver.id || tripOccupants.some((person) => person.id === item.id)) setError('El funcionario ya forma parte del viaje.'); else setTripOccupants((current) => [...current, item]); setResults([]); setSearch(''); }} style={styles.employeeResult}><Text style={styles.employeeResultName}>{item.name}</Text><Text style={styles.employeeDetail}>{item.identification} · {item.department}</Text></Pressable>)}<Text style={styles.fieldLabel}>Boleta SOIN</Text><TextInput autoCapitalize="characters" value={soin} onChangeText={setSoin} style={styles.input}/><Text style={styles.fieldLabel}>Destino</Text><TextInput value={destination} onChangeText={setDestination} style={styles.input}/></>}
+      {(mode === 'INGRESO' || driver) && <><Text style={styles.fieldLabel}>Kilometraje de {mode === 'SALIDA' ? 'salida' : 'ingreso'}</Text><TextInput keyboardType="numeric" value={mileage} onChangeText={setMileage} style={styles.input}/><Text style={styles.fieldLabel}>Combustible (0–100%)</Text><TextInput keyboardType="numeric" value={fuel} onChangeText={setFuel} style={styles.input}/><Pressable disabled={loading} onPress={() => void confirm()} style={styles.primaryButton}>{loading ? <ActivityIndicator color="#fff"/> : <Text style={styles.primaryButtonText}>Confirmar {mode.toLowerCase()}</Text>}</Pressable></>}
+    </View>}{error ? <Text style={styles.error}>{error}</Text> : null}{success ? <Text style={styles.success}>{success}</Text> : null}
+  </ScrollView></SafeAreaView>;
+}
+
 function PrivateVehicleMovementScreen() {
   const { session } = useSession();
   const [plate, setPlate] = useState('');
@@ -75,7 +104,7 @@ function PrivateVehicleMovementScreen() {
     if (!plate.trim()) { setError('Ingrese la placa del vehículo.'); return; }
     setLoading(true); setError(''); setSuccess(''); setUnknownPlate(false);
     try {
-      const found = await resolvePrivateVehicleMovement(session.token, plate);
+      const found = await resolvePrivateVehicleMovement(session!.token, plate);
       setResolution(found); setPlate(found.vehicle.plate); setDriver(found.habitualDriver); setOccupants([]); setResults([]);
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : 'No fue posible consultar la placa';
@@ -86,7 +115,7 @@ function PrivateVehicleMovementScreen() {
   async function findPeople() {
     if (!search.trim()) { setError('Escriba el nombre o la identificación.'); return; }
     setLoading(true); setError('');
-    try { setResults(await searchActiveEmployees(session.token, search)); }
+    try { setResults(await searchActiveEmployees(session!.token, search)); }
     catch (reason) { setError(reason instanceof Error ? reason.message : 'No fue posible buscar funcionarios'); }
     finally { setLoading(false); }
   }
@@ -105,7 +134,7 @@ function PrivateVehicleMovementScreen() {
     setLoading(true); setError('');
     try {
       const uid = await readPhysicalNfcUid();
-      const found = await resolveNfcMovement(session.token, uid);
+      const found = await resolveNfcMovement(session!.token, uid);
       if (found.employee.id === driver?.id) setError('El conductor no puede agregarse como acompañante.');
       else if (occupants.some((item) => item.id === found.employee.id)) setError('El funcionario ya está agregado como acompañante.');
       else setOccupants((current) => [...current, found.employee]);
@@ -118,8 +147,8 @@ function PrivateVehicleMovementScreen() {
     if (!resolution || !driver) return;
     setLoading(true); setError('');
     try {
-      await confirmPrivateVehicleMovement(session.token, { plate: resolution.vehicle.plate, driverEmployeeId: driver.id, occupantEmployeeIds: occupants.map((item) => item.id), movementType: resolution.proposedMovement });
-      const count = await getPresenceCount(session.token);
+      await confirmPrivateVehicleMovement(session!.token, { plate: resolution.vehicle.plate, driverEmployeeId: driver.id, occupantEmployeeIds: occupants.map((item) => item.id), movementType: resolution.proposedMovement });
+      const count = await getPresenceCount(session!.token);
       setSuccess(`${resolution.proposedMovement === 'INGRESO' ? 'Ingreso' : 'Salida'} del vehículo registrado. Aforo actual: ${count}.`);
       setResolution(null); setDriver(null); setOccupants([]); setPlate('');
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'No fue posible registrar el movimiento'); }
@@ -319,4 +348,5 @@ const styles = StyleSheet.create({
   nfcMethodButton: { flexDirection: 'row', alignItems: 'center', padding: 14, marginTop: 20, borderWidth: 1, borderColor: '#BFD7E8', borderRadius: 14, backgroundColor: '#E8F1F8' }, nfcMethodIcon: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginRight: 12, borderRadius: 12, backgroundColor: colors.primary }, nfcMethodIconText: { color: '#fff', fontSize: 10, fontWeight: '900' }, nfcMethodText: { flex: 1 }, nfcMethodTitle: { color: colors.text, fontSize: 14, fontWeight: '800' }, methodArrow: { color: colors.primary, fontSize: 28 },
   methodDivider: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 20 }, dividerLine: { flex: 1, height: 1, backgroundColor: colors.border }, dividerText: { color: colors.muted, fontSize: 9, fontWeight: '800', letterSpacing: .5 },
   occupantRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: colors.border }, removeText: { color: '#9A2E2E', fontSize: 12, fontWeight: '800' },
+  modeRow: { flexDirection: 'row', gap: 8, marginTop: 20 }, modeButton: { flex: 1, minHeight: 46, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: 11, backgroundColor: '#fff' }, modeActive: { borderColor: colors.primary, backgroundColor: colors.primary }, modeActiveText: { color: '#fff', fontWeight: '800' },
 });
