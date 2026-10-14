@@ -97,6 +97,13 @@ export async function getPresenceCount(token: string) {
   return response.data.count;
 }
 
+export type EmergencyPresenceRecord = { id: string; kind: 'FUNCIONARIO' | 'VISITANTE'; name: string; identification: string; detail: string; enteredAt: string };
+
+export async function getEmergencyPresence(token: string) {
+  const response = await apiRequest<{ data: EmergencyPresenceRecord[] }>('/api/v1/movements/presence/emergency', {}, token);
+  return response.data;
+}
+
 export type ActiveVisitorVisit = { id: string; identification: string; name: string; reason: string; badgeCode: string; entryAt: string };
 
 export async function registerVisitorEntry(token: string, input: { identification: string; name: string; reason: string; badgeCode: string }) {

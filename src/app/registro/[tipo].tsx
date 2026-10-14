@@ -1,11 +1,11 @@
 import { Redirect, router, useLocalSearchParams, type Href } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SICAFColors as colors } from '@/constants/theme';
 import { useSession } from '@/auth/SessionContext';
-import { confirmInstitutionalDeparture, confirmInstitutionalReturn, confirmManualMovement, confirmNfcMovement, confirmPrivateVehicleMovement, getActiveVisitorVisits, getPresenceCount, registerVisitorEntry, registerVisitorExit, resolveInstitutionalDeparture, resolveInstitutionalReturn, resolveManualMovement, resolveNfcMovement, resolvePrivateVehicleMovement, searchActiveEmployees, type ActiveVisitorVisit, type Employee, type InstitutionalTrip, type ManualMovementResolution, type NfcMovementResolution, type PrivateVehicleMovementResolution } from '@/services/api';
+import { confirmInstitutionalDeparture, confirmInstitutionalReturn, confirmManualMovement, confirmNfcMovement, confirmPrivateVehicleMovement, getActiveVisitorVisits, getEmergencyPresence, getPresenceCount, registerVisitorEntry, registerVisitorExit, resolveInstitutionalDeparture, resolveInstitutionalReturn, resolveManualMovement, resolveNfcMovement, resolvePrivateVehicleMovement, searchActiveEmployees, type ActiveVisitorVisit, type Employee, type EmergencyPresenceRecord, type InstitutionalTrip, type ManualMovementResolution, type NfcMovementResolution, type PrivateVehicleMovementResolution } from '@/services/api';
 import { readPhysicalNfcUid } from '@/services/nfc';
 
 const processNames: Record<string, string> = {
@@ -22,6 +22,7 @@ export default function RegistrationScreen() {
   if (tipo === 'vehiculo') return <PrivateVehicleMovementScreen />;
   if (tipo === 'institucional') return <InstitutionalVehicleMovementScreen />;
   if (tipo === 'visitante') return <VisitorMovementScreen />;
+  if (tipo === 'emergencia') return <EmergencyPresenceScreen />;
   const title = processNames[tipo] ?? 'Proceso SICAF';
 
   return (
@@ -55,6 +56,19 @@ export default function RegistrationScreen() {
       </View>
     </SafeAreaView>
   );
+}
+
+function EmergencyPresenceScreen() {
+  const { session } = useSession();
+  const [people, setPeople] = useState<EmergencyPresenceRecord[]>([]);
+  const [loading, setLoading] = useState(true); const [error, setError] = useState('');
+  useEffect(() => { if (!session) return; getEmergencyPresence(session.token).then(setPeople).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : 'No fue posible cargar la lista')).finally(() => setLoading(false)); }, [session]);
+  if (!session) return <Redirect href={'/login' as Href} />;
+  return <SafeAreaView style={styles.screen}><View style={styles.header}><Pressable onPress={() => router.back()} style={styles.backButton}><Text style={styles.backText}>‹ Volver</Text></Pressable><Text style={styles.brand}>SICAF · DRAT</Text></View><ScrollView contentContainerStyle={styles.nfcContent}>
+    <Text style={styles.eyebrow}>CONTROL DE AFORO</Text><Text style={styles.title}>Lista de emergencia</Text><Text style={styles.description}>{people.length} {people.length === 1 ? 'persona dentro' : 'personas dentro'}. Incluye funcionarios y visitantes con ingreso vigente.</Text>
+    {loading ? <ActivityIndicator color={colors.primary}/> : people.length === 0 ? <View style={styles.notice}><Text style={styles.noticeTitle}>Plantel sin personas registradas</Text><Text style={styles.noticeText}>Actualmente no existe ningún funcionario ni visitante con estado de ingreso.</Text></View> : people.map((person) => <View key={`${person.kind}-${person.id}`} style={styles.employeeResult}><Text style={styles.confirmLabel}>{person.kind}</Text><Text style={styles.employeeResultName}>{person.name}</Text><Text style={styles.employeeDetail}>{person.identification}</Text><Text style={styles.employeeDetail}>{person.detail}</Text><Text style={styles.employeeDetail}>Ingreso: {new Date(person.enteredAt).toLocaleString('es-CR')}</Text></View>)}
+    {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
+  </ScrollView></SafeAreaView>;
 }
 
 function VisitorMovementScreen() {
