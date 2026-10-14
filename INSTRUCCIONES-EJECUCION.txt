@@ -1,0 +1,56 @@
+SICAF - INSTRUCCIONES PARA EJECUTAR LA APLICACIÓN MÓVIL
+=======================================================
+
+Requisitos:
+- Node.js 22.13 o superior.
+- Android Studio y Android SDK para la compilación con NFC.
+- La API SICAF y PostgreSQL deben estar ejecutándose.
+- Teléfono Android con depuración USB y NFC para pruebas físicas.
+
+1. Abrir PowerShell en el repositorio:
+
+   cd C:\ruta\donde\descargo\DRAT-REGISTRO-APP
+
+2. Instalar dependencias:
+
+   npm.cmd install
+
+3. Crear la configuración local:
+
+   Copy-Item .env.example .env
+
+4. Para emulador Android, usar en .env:
+
+   EXPO_PUBLIC_API_URL=http://10.0.2.2:3000
+
+5. Para un teléfono conectado por USB, puede usar:
+
+   EXPO_PUBLIC_API_URL=http://127.0.0.1:3000
+
+   & "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" devices
+   & "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" reverse tcp:3000 tcp:3000
+   & "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" reverse tcp:8081 tcp:8081
+
+6. Primera instalación o cambios en módulos nativos (incluido NFC):
+
+   npm.cmd run android
+
+7. Ejecuciones posteriores con la aplicación ya instalada:
+
+   npm.cmd start
+
+   Luego presione "a" para abrir Android, o abra la aplicación instalada.
+
+Para detener Metro, presione Ctrl+C.
+
+IMPORTANTE:
+- La lectura NFC física utiliza react-native-nfc-manager y requiere una
+  compilación de desarrollo; Expo Go no incluye este módulo nativo.
+- Si el teléfono muestra errores contra 127.0.0.1, repita los dos comandos
+  adb reverse después de reconectarlo o reiniciar ADB.
+- Para pruebas sin NFC puede utilizar el código manual disponible en la app.
+
+Validaciones opcionales:
+
+   npm.cmd run lint
+   npx.cmd tsc --noEmit
