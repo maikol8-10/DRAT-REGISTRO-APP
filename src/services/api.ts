@@ -94,6 +94,23 @@ export async function getPresenceCount(token: string) {
   return response.data.count;
 }
 
+export type PrivateVehicleMovementResolution = {
+  vehicle: { id: string; plate: string; brand: string; model: string; color: string };
+  habitualDriver: Employee;
+  proposedMovement: 'INGRESO' | 'SALIDA';
+  lastMovement: { id: string; movementType: 'INGRESO' | 'SALIDA'; occurredAt: string } | null;
+};
+
+export async function resolvePrivateVehicleMovement(token: string, plate: string) {
+  const response = await apiRequest<{ data: PrivateVehicleMovementResolution }>('/api/v1/movements/private-vehicles/resolve', { method: 'POST', body: JSON.stringify({ plate }) }, token);
+  return response.data;
+}
+
+export async function confirmPrivateVehicleMovement(token: string, input: { plate: string; driverEmployeeId: string; occupantEmployeeIds: string[]; movementType: 'INGRESO' | 'SALIDA' }) {
+  const response = await apiRequest<{ data: { id: string; movementType: 'INGRESO' | 'SALIDA'; occurredAt: string } }>('/api/v1/movements/private-vehicles', { method: 'POST', body: JSON.stringify({ ...input, source: 'PLACA_MANUAL' }) }, token);
+  return response.data;
+}
+
 export async function getEmployees(token: string) {
   const response = await apiRequest<{ data: Employee[] }>('/api/v1/catalogs/employees', {}, token);
   return response.data;

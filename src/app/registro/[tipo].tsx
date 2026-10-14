@@ -5,12 +5,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SICAFColors as colors } from '@/constants/theme';
 import { useSession } from '@/auth/SessionContext';
-import { confirmManualMovement, confirmNfcMovement, getPresenceCount, resolveManualMovement, resolveNfcMovement, searchActiveEmployees, type Employee, type ManualMovementResolution, type NfcMovementResolution } from '@/services/api';
+import { confirmManualMovement, confirmNfcMovement, confirmPrivateVehicleMovement, getPresenceCount, resolveManualMovement, resolveNfcMovement, resolvePrivateVehicleMovement, searchActiveEmployees, type Employee, type ManualMovementResolution, type NfcMovementResolution, type PrivateVehicleMovementResolution } from '@/services/api';
 import { readPhysicalNfcUid } from '@/services/nfc';
 
 const processNames: Record<string, string> = {
   nfc: 'Escanear TAG NFC',
-  ocr: 'Reconocer una placa',
+  vehiculo: 'Vehículo particular',
   visitante: 'Registrar visitante',
   emergencia: 'Lista de emergencia',
 };
@@ -19,6 +19,7 @@ export default function RegistrationScreen() {
   const { tipo } = useLocalSearchParams<{ tipo: string }>();
   if (tipo === 'nfc') return <NfcMovementScreen />;
   if (tipo === 'peatonal') return <ManualEmployeeMovementScreen />;
+  if (tipo === 'vehiculo') return <PrivateVehicleMovementScreen />;
   const title = processNames[tipo] ?? 'Proceso SICAF';
 
   return (
@@ -52,6 +53,103 @@ export default function RegistrationScreen() {
       </View>
     </SafeAreaView>
   );
+}
+
+function PrivateVehicleMovementScreen() {
+  const { session } = useSession();
+  const [plate, setPlate] = useState('');
+  const [resolution, setResolution] = useState<PrivateVehicleMovementResolution | null>(null);
+  const [driver, setDriver] = useState<Employee | null>(null);
+  const [occupants, setOccupants] = useState<Employee[]>([]);
+  const [search, setSearch] = useState('');
+  const [results, setResults] = useState<Employee[]>([]);
+  const [selectionMode, setSelectionMode] = useState<'DRIVER' | 'OCCUPANT'>('OCCUPANT');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [unknownPlate, setUnknownPlate] = useState(false);
+
+  if (!session) return <Redirect href={'/login' as Href} />;
+
+  async function findVehicle() {
+    if (!plate.trim()) { setError('Ingrese la placa del vehículo.'); return; }
+    setLoading(true); setError(''); setSuccess(''); setUnknownPlate(false);
+    try {
+      const found = await resolvePrivateVehicleMovement(session.token, plate);
+      setResolution(found); setPlate(found.vehicle.plate); setDriver(found.habitualDriver); setOccupants([]); setResults([]);
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : 'No fue posible consultar la placa';
+      setError(message); setUnknownPlate(message.toLowerCase().includes('desconocida'));
+    } finally { setLoading(false); }
+  }
+
+  async function findPeople() {
+    if (!search.trim()) { setError('Escriba el nombre o la identificación.'); return; }
+    setLoading(true); setError('');
+    try { setResults(await searchActiveEmployees(session.token, search)); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : 'No fue posible buscar funcionarios'); }
+    finally { setLoading(false); }
+  }
+
+  function selectPerson(employee: Employee) {
+    if (selectionMode === 'DRIVER') {
+      setDriver(employee); setOccupants((current) => current.filter((item) => item.id !== employee.id));
+      setSelectionMode('OCCUPANT');
+    } else if (employee.id === driver?.id) setError('El conductor no puede agregarse como acompañante.');
+    else if (occupants.some((item) => item.id === employee.id)) setError('El funcionario ya está agregado como acompañante.');
+    else setOccupants((current) => [...current, employee]);
+    setResults([]); setSearch('');
+  }
+
+  async function scanOccupant() {
+    setLoading(true); setError('');
+    try {
+      const uid = await readPhysicalNfcUid();
+      const found = await resolveNfcMovement(session.token, uid);
+      if (found.employee.id === driver?.id) setError('El conductor no puede agregarse como acompañante.');
+      else if (occupants.some((item) => item.id === found.employee.id)) setError('El funcionario ya está agregado como acompañante.');
+      else setOccupants((current) => [...current, found.employee]);
+      setSelectionMode('OCCUPANT');
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'No fue posible leer el TAG del acompañante'); }
+    finally { setLoading(false); }
+  }
+
+  async function confirm() {
+    if (!resolution || !driver) return;
+    setLoading(true); setError('');
+    try {
+      await confirmPrivateVehicleMovement(session.token, { plate: resolution.vehicle.plate, driverEmployeeId: driver.id, occupantEmployeeIds: occupants.map((item) => item.id), movementType: resolution.proposedMovement });
+      const count = await getPresenceCount(session.token);
+      setSuccess(`${resolution.proposedMovement === 'INGRESO' ? 'Ingreso' : 'Salida'} del vehículo registrado. Aforo actual: ${count}.`);
+      setResolution(null); setDriver(null); setOccupants([]); setPlate('');
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'No fue posible registrar el movimiento'); }
+    finally { setLoading(false); }
+  }
+
+  return <SafeAreaView style={styles.screen}>
+    <View style={styles.header}><Pressable onPress={() => router.back()} style={styles.backButton}><Text style={styles.backText}>‹ Volver</Text></Pressable><Text style={styles.brand}>SICAF · DRAT</Text></View>
+    <ScrollView contentContainerStyle={styles.nfcContent} keyboardShouldPersistTaps="handled">
+      <Text style={styles.eyebrow}>MOVIMIENTO VEHICULAR</Text><Text style={styles.title}>Vehículo particular</Text><Text style={styles.description}>Ingrese la placa para identificar el vehículo y su conductor habitual. El reconocimiento por cámara se conectará posteriormente.</Text>
+      {!resolution && <><Text style={styles.fieldLabel}>Placa</Text><TextInput autoCapitalize="characters" placeholder="Ejemplo: ABC123" placeholderTextColor={colors.muted} value={plate} onChangeText={setPlate} style={styles.input} onSubmitEditing={() => void findVehicle()} /><Pressable disabled={loading} onPress={() => void findVehicle()} style={styles.primaryButton}>{loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Buscar placa</Text>}</Pressable></>}
+      {unknownPlate && <Pressable onPress={() => router.replace({ pathname: '/registro/[tipo]', params: { tipo: 'visitante' } })} style={styles.cancelButton}><Text style={styles.cancelText}>Continuar con flujo de visitantes</Text></Pressable>}
+      {resolution && driver && <View style={styles.confirmCard}>
+        <Text style={styles.confirmLabel}>VEHÍCULO IDENTIFICADO</Text><Text style={styles.employeeName}>{resolution.vehicle.plate}</Text><Text style={styles.employeeDetail}>{resolution.vehicle.brand} {resolution.vehicle.model} · {resolution.vehicle.color}</Text>
+        <View style={[styles.movementBadge, resolution.proposedMovement === 'SALIDA' && styles.exitBadge]}><Text style={styles.movementText}>Movimiento propuesto: {resolution.proposedMovement}</Text></View>
+        <Text style={styles.fieldLabel}>Conductor</Text><Text style={styles.employeeResultName}>{driver.name}</Text><Text style={styles.employeeDetail}>{driver.identification} · {driver.department}</Text>
+        <Pressable onPress={() => { setSelectionMode('DRIVER'); setResults([]); setSearch(''); }} style={styles.cancelButton}><Text style={styles.cancelText}>Cambiar conductor</Text></Pressable>
+        <Text style={styles.fieldLabel}>Acompañantes ({occupants.length})</Text>
+        {occupants.map((item) => <View key={item.id} style={styles.occupantRow}><View><Text style={styles.employeeResultName}>{item.name}</Text><Text style={styles.employeeDetail}>{item.identification}</Text></View><Pressable onPress={() => setOccupants((current) => current.filter((person) => person.id !== item.id))}><Text style={styles.removeText}>Quitar</Text></Pressable></View>)}
+        <Pressable disabled={loading} onPress={() => void scanOccupant()} style={styles.nfcMethodButton}><View style={styles.nfcMethodIcon}><Text style={styles.nfcMethodIconText}>NFC</Text></View><View style={styles.nfcMethodText}><Text style={styles.nfcMethodTitle}>Leer TAG de acompañante</Text><Text style={styles.employeeDetail}>Cada funcionario se identifica individualmente</Text></View></Pressable>
+        <View style={styles.methodDivider}><View style={styles.dividerLine} /><Text style={styles.dividerText}>O BÚSQUEDA MANUAL</Text><View style={styles.dividerLine} /></View>
+        <TextInput placeholder="Nombre o identificación" placeholderTextColor={colors.muted} value={search} onChangeText={setSearch} style={styles.input} onFocus={() => { if (selectionMode !== 'DRIVER') setSelectionMode('OCCUPANT'); }} onSubmitEditing={() => void findPeople()} />
+        <Pressable disabled={loading} onPress={() => void findPeople()} style={styles.cancelButton}><Text style={styles.cancelText}>Buscar {selectionMode === 'DRIVER' ? 'conductor' : 'acompañante'}</Text></Pressable>
+        <View style={styles.employeeResults}>{results.map((employee) => <Pressable key={employee.id} onPress={() => selectPerson(employee)} style={styles.employeeResult}><Text style={styles.employeeResultName}>{employee.name}</Text><Text style={styles.employeeDetail}>{employee.identification} · {employee.department}</Text><Text style={styles.selectText}>Seleccionar ›</Text></Pressable>)}</View>
+        <Text style={styles.confirmQuestion}>¿Confirma el movimiento del vehículo y sus ocupantes?</Text><Pressable disabled={loading} onPress={() => void confirm()} style={styles.primaryButton}>{loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Confirmar {resolution.proposedMovement.toLowerCase()}</Text>}</Pressable><Pressable onPress={() => { setResolution(null); setDriver(null); setOccupants([]); setResults([]); }} style={styles.cancelButton}><Text style={styles.cancelText}>Cancelar operación</Text></Pressable>
+      </View>}
+      {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}{success ? <Text style={styles.success}>{success}</Text> : null}
+      <View style={styles.notice}><Text style={styles.noticeTitle}>Registro único</Text><Text style={styles.noticeText}>El conductor se registra una sola vez. Los acompañantes se agregan individualmente y una placa desconocida se envía al flujo de visitantes.</Text></View>
+    </ScrollView>
+  </SafeAreaView>;
 }
 
 function ManualEmployeeMovementScreen() {
@@ -220,4 +318,5 @@ const styles = StyleSheet.create({
   employeeResults: { gap: 9, marginTop: 14 }, employeeResult: { padding: 14, borderWidth: 1, borderColor: colors.border, borderRadius: 13, backgroundColor: '#fff' }, employeeResultName: { color: colors.text, fontSize: 15, fontWeight: '800' }, selectText: { marginTop: 9, color: colors.primary, fontSize: 12, fontWeight: '800' },
   nfcMethodButton: { flexDirection: 'row', alignItems: 'center', padding: 14, marginTop: 20, borderWidth: 1, borderColor: '#BFD7E8', borderRadius: 14, backgroundColor: '#E8F1F8' }, nfcMethodIcon: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginRight: 12, borderRadius: 12, backgroundColor: colors.primary }, nfcMethodIconText: { color: '#fff', fontSize: 10, fontWeight: '900' }, nfcMethodText: { flex: 1 }, nfcMethodTitle: { color: colors.text, fontSize: 14, fontWeight: '800' }, methodArrow: { color: colors.primary, fontSize: 28 },
   methodDivider: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 20 }, dividerLine: { flex: 1, height: 1, backgroundColor: colors.border }, dividerText: { color: colors.muted, fontSize: 9, fontWeight: '800', letterSpacing: .5 },
+  occupantRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: colors.border }, removeText: { color: '#9A2E2E', fontSize: 12, fontWeight: '800' },
 });
