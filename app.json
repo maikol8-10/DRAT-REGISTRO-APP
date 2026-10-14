@@ -26,6 +26,7 @@
     },
     "plugins": [
       "expo-router",
+      "react-native-nfc-manager",
       [
         "expo-splash-screen",
         {

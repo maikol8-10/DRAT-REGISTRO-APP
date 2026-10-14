@@ -91,6 +91,15 @@ export default function HomeScreen() {
                   <Text style={styles.actionArrow}>›</Text>
                 </Pressable>
               ))}
+              {session.user.role === 'ADMINISTRADOR' && <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Administrar TAG NFC"
+                onPress={() => router.navigate('/administracion/tags-nfc' as Href)}
+                style={({ pressed }) => [styles.adminCard, pressed && styles.actionPressed]}>
+                <View style={styles.adminIcon}><Text style={styles.actionIconText}>ADM</Text></View>
+                <View style={styles.actionText}><Text style={styles.actionTitle}>Administrar TAG NFC</Text><Text style={styles.actionDetail}>Leer y asignar gafetes a funcionarios sin TAG</Text></View>
+                <Text style={styles.actionArrow}>›</Text>
+              </Pressable>}
             </View>
 
             <View style={styles.notice}>
@@ -139,6 +148,8 @@ const styles = StyleSheet.create({
   actionTitle: { color: colors.text, fontSize: 16, fontWeight: '700' },
   actionDetail: { color: colors.muted, fontSize: 12, lineHeight: 17, marginTop: 4 },
   actionArrow: { color: colors.primary, fontSize: 28, marginLeft: 8 },
+  adminCard: { minHeight: 82, flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 16, borderWidth: 1, borderColor: '#9ACCB6', backgroundColor: colors.successLight },
+  adminIcon: { width: 50, height: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginRight: 13, backgroundColor: '#D7EEE3' },
   notice: { padding: 16, marginTop: 20, borderRadius: 14, borderLeftWidth: 4, borderLeftColor: colors.success, backgroundColor: colors.successLight },
   noticeTitle: { color: '#087344', fontSize: 13, fontWeight: '800' },
   noticeText: { color: '#3F6554', fontSize: 12, lineHeight: 18, marginTop: 4 },

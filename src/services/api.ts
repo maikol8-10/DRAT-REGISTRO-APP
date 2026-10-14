@@ -16,6 +16,7 @@ export async function getApiHealth(signal?: AbortSignal): Promise<ApiHealth> {
 }
 
 export type Employee = { id: string; identification: string; name: string; department: string; position: string; active: boolean };
+export type NfcTagRecord = { id: string; code: string; employeeId: string; active: boolean; employee: Employee };
 type InstitutionalVehicle = { id: string; plate: string; brand: string; model: string; year: number; fuelType: string; active: boolean; ownershipType: 'INSTITUCIONAL' };
 type PrivateVehicle = { id: string; plate: string; brand: string; model: string; color: string; active: boolean; ownershipType: 'PARTICULAR'; owner: Pick<Employee, 'id' | 'identification' | 'name' | 'active'> };
 
@@ -64,8 +65,8 @@ export async function resolveNfcMovement(token: string, code: string) {
   return response.data;
 }
 
-export async function confirmNfcMovement(token: string, code: string, movementType: 'INGRESO' | 'SALIDA') {
-  const response = await apiRequest<{ data: { id: string; movementType: 'INGRESO' | 'SALIDA'; occurredAt: string } }>('/api/v1/movements/employees/nfc', { method: 'POST', body: JSON.stringify({ code, movementType, source: 'NFC_SIMULADO' }) }, token);
+export async function confirmNfcMovement(token: string, code: string, movementType: 'INGRESO' | 'SALIDA', source: 'NFC_SIMULADO' | 'NFC_FISICO' = 'NFC_FISICO') {
+  const response = await apiRequest<{ data: { id: string; movementType: 'INGRESO' | 'SALIDA'; occurredAt: string } }>('/api/v1/movements/employees/nfc', { method: 'POST', body: JSON.stringify({ code, movementType, source }) }, token);
   return response.data;
 }
 
@@ -90,4 +91,19 @@ export async function confirmManualMovement(token: string, employeeId: string, m
 export async function getPresenceCount(token: string) {
   const response = await apiRequest<{ data: { count: number } }>('/api/v1/movements/employees/presence/count', {}, token);
   return response.data.count;
+}
+
+export async function getEmployees(token: string) {
+  const response = await apiRequest<{ data: Employee[] }>('/api/v1/catalogs/employees', {}, token);
+  return response.data;
+}
+
+export async function getNfcTags(token: string) {
+  const response = await apiRequest<{ data: NfcTagRecord[] }>('/api/v1/catalogs/nfc-tags', {}, token);
+  return response.data;
+}
+
+export async function createNfcTag(token: string, input: { code: string; employeeId: string }) {
+  const response = await apiRequest<{ data: NfcTagRecord }>('/api/v1/catalogs/nfc-tags', { method: 'POST', body: JSON.stringify(input) }, token);
+  return response.data;
 }

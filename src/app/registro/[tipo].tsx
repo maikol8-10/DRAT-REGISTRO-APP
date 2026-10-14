@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { SICAFColors as colors } from '@/constants/theme';
 import { useSession } from '@/auth/SessionContext';
 import { confirmManualMovement, confirmNfcMovement, getPresenceCount, resolveManualMovement, resolveNfcMovement, searchActiveEmployees, type Employee, type ManualMovementResolution, type NfcMovementResolution } from '@/services/api';
+import { readPhysicalNfcUid } from '@/services/nfc';
 
 const processNames: Record<string, string> = {
   nfc: 'Escanear TAG NFC',
@@ -16,7 +17,7 @@ const processNames: Record<string, string> = {
 
 export default function RegistrationScreen() {
   const { tipo } = useLocalSearchParams<{ tipo: string }>();
-  if (tipo === 'nfc') return <NfcSimulationScreen />;
+  if (tipo === 'nfc') return <NfcMovementScreen />;
   if (tipo === 'peatonal') return <ManualEmployeeMovementScreen />;
   const title = processNames[tipo] ?? 'Proceso SICAF';
 
@@ -107,29 +108,41 @@ function ManualEmployeeMovementScreen() {
   </SafeAreaView>;
 }
 
-function NfcSimulationScreen() {
+function NfcMovementScreen() {
   const { session } = useSession();
   const [code, setCode] = useState('');
   const [resolution, setResolution] = useState<NfcMovementResolution | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [source, setSource] = useState<'NFC_SIMULADO' | 'NFC_FISICO'>('NFC_FISICO');
 
   if (!session) return <Redirect href={'/login' as Href} />;
 
-  async function simulate() {
-    if (!session || !code.trim()) { setError('Ingrese el código de un TAG NFC.'); return; }
+  async function resolveCode(value: string, nextSource: 'NFC_SIMULADO' | 'NFC_FISICO') {
+    if (!session || !value.trim()) { setError('Ingrese el código de un TAG NFC.'); return; }
     setLoading(true); setError(''); setSuccess(''); setResolution(null);
-    try { setResolution(await resolveNfcMovement(session.token, code)); }
+    try { setSource(nextSource); setCode(value); setResolution(await resolveNfcMovement(session.token, value)); }
     catch (reason) { setError(reason instanceof Error ? reason.message : 'No fue posible validar el TAG'); }
     finally { setLoading(false); }
+  }
+
+  async function scan() {
+    setLoading(true); setError(''); setSuccess(''); setResolution(null);
+    try {
+      const uid = await readPhysicalNfcUid();
+      await resolveCode(uid, 'NFC_FISICO');
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'No fue posible leer la etiqueta NFC');
+      setLoading(false);
+    }
   }
 
   async function confirm() {
     if (!session || !resolution) return;
     setLoading(true); setError('');
     try {
-      await confirmNfcMovement(session.token, resolution.tag.code, resolution.proposedMovement);
+      await confirmNfcMovement(session.token, resolution.tag.code, resolution.proposedMovement, source);
       setSuccess(`${resolution.proposedMovement === 'INGRESO' ? 'Ingreso' : 'Salida'} registrado correctamente para ${resolution.employee.name}.`);
       setResolution(null); setCode('');
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'No fue posible registrar el movimiento'); }
@@ -139,11 +152,12 @@ function NfcSimulationScreen() {
   return <SafeAreaView style={styles.screen}>
     <View style={styles.header}><Pressable onPress={() => router.back()} style={styles.backButton}><Text style={styles.backText}>‹ Volver</Text></Pressable><Text style={styles.brand}>SICAF · DRAT</Text></View>
     <ScrollView contentContainerStyle={styles.nfcContent} keyboardShouldPersistTaps="handled">
-      <View style={styles.testBadge}><Text style={styles.testBadgeText}>MODO DE PRUEBA NFC · SIN LECTURA FÍSICA</Text></View>
-      <Text style={styles.eyebrow}>MOVIMIENTO DE FUNCIONARIO</Text><Text style={styles.title}>Simular lectura de TAG</Text>
-      <Text style={styles.description}>Digite el código registrado en Administración. El sistema identificará al funcionario y propondrá el siguiente movimiento válido.</Text>
-      <Text style={styles.fieldLabel}>Código NFC simulado</Text><TextInput autoCapitalize="characters" placeholder="Ejemplo: TAG-ANDRES-01" placeholderTextColor={colors.muted} value={code} onChangeText={setCode} editable={!resolution} style={styles.input} onSubmitEditing={() => void simulate()} />
-      {!resolution && <Pressable disabled={loading} onPress={() => void simulate()} style={styles.primaryButton}>{loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Simular lectura NFC</Text>}</Pressable>}
+      <View style={styles.testBadge}><Text style={styles.testBadgeText}>LECTURA NFC FÍSICA</Text></View>
+      <Text style={styles.eyebrow}>MOVIMIENTO DE FUNCIONARIO</Text><Text style={styles.title}>Leer gafete NFC</Text>
+      <Text style={styles.description}>Presione el botón y acerque el gafete al teléfono. El sistema identificará al funcionario y propondrá su ingreso o salida.</Text>
+      {!resolution && <Pressable disabled={loading} onPress={() => void scan()} style={styles.primaryButton}>{loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Iniciar lectura NFC</Text>}</Pressable>}
+      {!resolution && <View style={styles.methodDivider}><View style={styles.dividerLine} /><Text style={styles.dividerText}>CONTINGENCIA DE PRUEBA</Text><View style={styles.dividerLine} /></View>}
+      {!resolution && <><Text style={styles.fieldLabel}>Código NFC manual</Text><TextInput autoCapitalize="characters" placeholder="Ejemplo: TAG-ANDRES-01" placeholderTextColor={colors.muted} value={code} onChangeText={setCode} style={styles.input} onSubmitEditing={() => void resolveCode(code, 'NFC_SIMULADO')} /><Pressable disabled={loading} onPress={() => void resolveCode(code, 'NFC_SIMULADO')} style={styles.cancelButton}><Text style={styles.cancelText}>Validar código manual</Text></Pressable></>}
       {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}{success ? <Text style={styles.success}>{success}</Text> : null}
       {resolution && <View style={styles.confirmCard}><Text style={styles.confirmLabel}>FUNCIONARIO IDENTIFICADO</Text><Text style={styles.employeeName}>{resolution.employee.name}</Text><Text style={styles.employeeDetail}>{resolution.employee.identification} · {resolution.employee.department}</Text><View style={[styles.movementBadge, resolution.proposedMovement === 'SALIDA' && styles.exitBadge]}><Text style={styles.movementText}>Movimiento propuesto: {resolution.proposedMovement}</Text></View><Text style={styles.confirmQuestion}>¿Desea registrar este movimiento?</Text><Pressable disabled={loading} onPress={() => void confirm()} style={styles.primaryButton}>{loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Confirmar {resolution.proposedMovement.toLowerCase()}</Text>}</Pressable><Pressable disabled={loading} onPress={() => { setResolution(null); setCode(''); setError(''); }} style={styles.cancelButton}><Text style={styles.cancelText}>Cancelar operación</Text></Pressable></View>}
       <View style={styles.notice}><Text style={styles.noticeTitle}>Validaciones activas</Text><Text style={styles.noticeText}>Un TAG desconocido, inactivo, duplicado o asociado con un funcionario inactivo no crea movimientos automáticamente.</Text></View>
